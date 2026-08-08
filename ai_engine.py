@@ -10,7 +10,6 @@ from groq import Groq
 from supabase import create_client, Client
 import streamlit as st
 
-# Ép hệ thống dùng chuẩn UTF-8
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
 
@@ -36,17 +35,8 @@ class AIEngine:
         self.supabase: Client = None
         self.db_status = "CHƯA_KẾT_NỐI"
         try:
-            sb_url = ""
-            sb_key = ""
-            if "SUPABASE_URL" in st.secrets:
-                sb_url = st.secrets["SUPABASE_URL"]
-            else:
-                sb_url = os.getenv("SUPABASE_URL", "")
-
-            if "SUPABASE_KEY" in st.secrets:
-                sb_key = st.secrets["SUPABASE_KEY"]
-            else:
-                sb_key = os.getenv("SUPABASE_KEY", "")
+            sb_url = st.secrets.get("SUPABASE_URL") or os.getenv("SUPABASE_URL", "")
+            sb_key = st.secrets.get("SUPABASE_KEY") or os.getenv("SUPABASE_KEY", "")
 
             if sb_url and sb_key:
                 self.supabase = create_client(sb_url, sb_key)
@@ -59,7 +49,7 @@ class AIEngine:
 
     # --- CÁC HÀM XỬ LÝ DATABASE SUPABASE ---
     def load_all_chats(self):
-        """Lấy danh sách tất cả cuộc trò chuyện từ Supabase"""
+        """Lấy toàn bộ danh sách chat từ DB khi vừa bấm F5"""
         if not self.supabase:
             return {}
         try:
@@ -69,7 +59,7 @@ class AIEngine:
                 chat_id = row["id"]
                 title = row["title"]
                 
-                # Lấy tất cả tin nhắn của chat_id này
+                # Lấy tin nhắn thuộc chat_id này
                 msg_res = self.supabase.table("messages").select("*").eq("chat_id", chat_id).order("created_at", desc=False).execute()
                 chats[title] = {
                     "id": chat_id,
@@ -91,7 +81,7 @@ class AIEngine:
             try:
                 self.supabase.table("chats").upsert({"id": chat_id, "title": title}).execute()
             except Exception as e:
-                print(f"Lỗi save chat: {e}")
+                print(f"Lỗi save chat node: {e}")
 
     def save_message(self, chat_id, role, content, display_content=""):
         if self.supabase:
@@ -119,7 +109,7 @@ class AIEngine:
             except Exception as e:
                 print(f"Lỗi update title: {e}")
 
-    # --- CÁC HÀM ĐỌC TỆP & CHAT AI ---
+    # --- CÁC HÀM XỬ LÝ TỆP & CHAT ---
     def extract_pdf(self, file_bytes):
         try:
             reader = PdfReader(file_bytes)
