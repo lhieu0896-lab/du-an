@@ -5,6 +5,7 @@ import io
 import base64
 import pandas as pd
 import docx
+import bcrypt
 from pypdf import PdfReader
 from groq import Groq
 from supabase import create_client, Client
@@ -48,6 +49,52 @@ class AIEngine:
         self.text_model = "llama-3.3-70b-versatile"
         self.vision_model = "llama-3.2-11b-vision-preview"
 
+    # --- HÀM XÁC THỰC BẢO MẬT NGUỜI DÙNG ---
+    def register_user(self, full_name, username, password):
+        """Đăng ký tài khoản người dùng mới"""
+        if not self.supabase:
+            return False, "Chưa kết nối Database!"
+        try:
+            username_clean = username.strip().lower()
+            # Kiểm tra xem username đã tồn tại chưa
+            res = self.supabase.table("users").select("*").eq("username", username_clean).execute()
+            if res.data:
+                return False, "Tên tài khoản này đã được sử dụng!"
+            
+            # Mã hóa mật khẩu bảo mật bằng bcrypt
+            hashed_pw = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+            
+            self.supabase.table("users").insert({
+                "full_name": full_name.strip(),
+                "username": username_clean,
+                "password_hash": hashed_pw
+            }).execute()
+            
+            return True, "Đăng ký tài khoản thành công!"
+        except Exception as e:
+            return False, f"Lỗi đăng ký: {str(e)}"
+
+    def authenticate_user(self, username, password):
+        """Xác thực đăng nhập tài khoản người dùng"""
+        if not self.supabase:
+            return None, "Chưa kết nối Database!"
+        try:
+            username_clean = username.strip().lower()
+            res = self.supabase.table("users").select("*").eq("username", username_clean).execute()
+            if not res.data:
+                return None, "Tên tài khoản hoặc mật khẩu không chính xác!"
+            
+            user_info = res.data[0]
+            stored_hash = user_info["password_hash"].encode('utf-8')
+            
+            # Kiểm tra mật khẩu
+            if bcrypt.checkpw(password.encode('utf-8'), stored_hash):
+                return user_info, "Đăng nhập thành công!"
+            else:
+                return None, "Tên tài khoản hoặc mật khẩu không chính xác!"
+        except Exception as e:
+            return None, f"Lỗi đăng nhập: {str(e)}"
+
     # --- TÌM KIẾM WEB REAL-TIME ---
     def search_web(self, query, max_results=5):
         try:
@@ -69,7 +116,7 @@ class AIEngine:
             print(f"Lỗi tìm kiếm web: {e}")
             return f"Lỗi truy cập kết quả tìm kiếm Web: {str(e)}"
 
-    # --- TỰ ĐỘNG ĐẶT TÊN CÂU HỎI ---
+    # --- TỰ ĐỘNG ĐẶT TÊN CHAT ---
     def generate_chat_title(self, first_user_message):
         if not self.client:
             return "Cuộc trò chuyện mới"
@@ -89,7 +136,7 @@ class AIEngine:
         except Exception:
             return "Cuộc trò chuyện mới"
 
-    # --- TRÍCH XUẤT TÀI LIỆU DÀI ---
+    # --- TRÍCH XUẤT ĐOẠN TÀI LIỆU DÀI ---
     def retrieve_relevant_chunks(self, full_text, query, chunk_size=1500, top_k=3):
         if len(full_text) <= chunk_size * 2:
             return full_text
@@ -125,12 +172,13 @@ class AIEngine:
         target_stream.seek(0)
         return target_stream
 
-    # --- SUPABASE DATABASE ---
-    def load_all_chats(self):
+    # --- SUPABASE DATABASE (ĐÃ PHÂN QUYỀN RIÊNG BIỆT THEO USER_ID) ---
+    def load_user_chats(self, user_id):
+        """LƯU Ý QUAN TRỌNG: Chỉ load đúng danh sách chat thuộc về user_id này"""
         if not self.supabase:
             return {}
         try:
-            res = self.supabase.table("chats").select("*").order("created_at", desc=False).execute()
+            res = self.supabase.table("chats").select("*").eq("user_id", str(user_id)).order("created_at", desc=False).execute()
             chats = {}
             for row in res.data:
                 chat_id = row["id"]
@@ -151,10 +199,10 @@ class AIEngine:
             print(f"Lỗi load DB: {e}")
             return {}
 
-    def save_chat_node(self, chat_id, title):
+    def save_chat_node(self, chat_id, title, user_id):
         if self.supabase:
             try:
-                self.supabase.table("chats").upsert({"id": chat_id, "title": title}).execute()
+                self.supabase.table("chats").upsert({"id": chat_id, "title": title, "user_id": str(user_id)}).execute()
             except Exception as e:
                 print(f"Lỗi save chat node: {e}")
 
@@ -247,7 +295,8 @@ class AIEngine:
         try:
             system_instruction_text = (
                 "Bạn là Trợ lý AI giáo dục thông minh và hữu ích của Nhóm NEXUS. "
-                "Trả lời chính xác, khoa học, logic bằng tiếng Việt. "
+                "TUÂN THỦ NGUYÊN TẮC VÀNG: Trả lời chính xác, khoa học, logic bằng tiếng Việt. "
+                "Nếu gặp câu hỏi không đủ thông tin hoặc nằm ngoài tri thức chắc chắn, hãy thẳng thắn trả lời 'Tôi không đủ thông tin chắc chắn về vấn đề này' chứ tuyệt đối không được tự đoán. "
                 "Sử dụng Markdown rõ ràng và LaTeX ($...$) cho công thức toán/hóa."
             )
             
@@ -263,7 +312,7 @@ class AIEngine:
             response_stream = self.client.chat.completions.create(
                 messages=api_messages,
                 model=self.text_model,
-                temperature=0.3,
+                temperature=0.0, # Ép Temperature = 0 để đạt độ chính xác tối đa
                 max_tokens=4000,
                 stream=True
             )
