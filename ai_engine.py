@@ -12,308 +12,333 @@ from supabase import create_client, Client
 from duckduckgo_search import DDGS
 import streamlit as st
 
+# Xuất utf-8 tránh lỗi font chữ tiếng Việt
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
 
-class AIEngine:
+class DongCoAI:
     def __init__(self):
-        # 1. Khởi tạo Groq API Client
-        self.api_key = ""
+        # Lấy danh sách API Keys từ secrets hoặc môi trường
+        self.danh_sach_keys = []
         try:
-            if "GROQ_API_KEY" in st.secrets:
-                self.api_key = st.secrets["GROQ_API_KEY"]
+            if "GROQ_API_KEYS" in st.secrets:
+                self.danh_sach_keys = list(st.secrets["GROQ_API_KEYS"])
+            elif "GROQ_API_KEY" in st.secrets:
+                self.danh_sach_keys = [st.secrets["GROQ_API_KEY"]]
         except Exception:
             pass
 
-        if not self.api_key:
-            self.api_key = os.getenv("GROQ_API_KEY", "")
+        if not self.danh_sach_keys:
+            key_don = os.getenv("GROQ_API_KEY", "")
+            if key_don:
+                self.danh_sach_keys = [key_don]
 
-        if self.api_key:
-            self.client = Groq(api_key=self.api_key)
-        else:
-            self.client = None
+        self.khoa_api_mac_dinh = self.danh_sach_keys[0] if self.danh_sach_keys else ""
+        self.ket_noi_groq = Groq(api_key=self.khoa_api_mac_dinh) if self.khoa_api_mac_dinh else None
 
-        # 2. Khởi tạo Supabase Database Client
-        self.supabase: Client = None
-        self.db_status = "CHƯA_KẾT_NỐI"
+        # Kết nối CSDL Supabase
+        self.ket_noi_supabase: Client = None
+        self.trang_thai_db = "CHƯA_KẾT_NỐI"
         try:
-            sb_url = st.secrets.get("SUPABASE_URL") or os.getenv("SUPABASE_URL", "")
-            sb_key = st.secrets.get("SUPABASE_KEY") or os.getenv("SUPABASE_KEY", "")
+            url_db = st.secrets.get("SUPABASE_URL") or os.getenv("SUPABASE_URL", "")
+            khoa_db = st.secrets.get("SUPABASE_KEY") or os.getenv("SUPABASE_KEY", "")
 
-            if sb_url and sb_key:
-                self.supabase = create_client(sb_url, sb_key)
-                self.db_status = "ĐÃ_KẾT_NỐI"
+            if url_db and khoa_db:
+                self.ket_noi_supabase = create_client(url_db, khoa_db)
+                self.trang_thai_db = "ĐÃ_KẾT_NỐI"
         except Exception as e:
-            self.db_status = f"LỖI: {str(e)}"
+            self.trang_thai_db = f"LỖI: {str(e)}"
 
-        self.text_model = "llama-3.3-70b-versatile"
-        self.vision_model = "llama-3.2-11b-vision-preview"
+        # Chuyển mô hình văn bản sang llama-3.1-8b-instant (tốc độ cao & hạn mức rộng)
+        self.mo_hinh_van_ban = "llama-3.1-8b-instant"
+        self.mo_hinh_hinh_anh = "llama-3.2-11b-vision-preview"
 
-    # --- HỆ THỐNG ĐĂNG KÝ & ĐĂNG NHẬP BẢO MẬT ---
-    def register_user(self, full_name, username, password):
-        """Tạo tài khoản người dùng mới và mã hóa mật khẩu"""
-        if not self.supabase:
-            return False, "Chưa kết nối Database Supabase!"
+    # --- ĐĂNG KÝ / ĐĂNG NHẬP ---
+    def dang_ky_tai_khoan(self, ho_ten, ten_dang_nhap, mat_khau):
+        if not self.ket_noi_supabase:
+            return False, "Chưa kết nối CSDL!"
         try:
-            username_clean = username.strip().lower()
-            res = self.supabase.table("users").select("*").eq("username", username_clean).execute()
-            if res.data:
-                return False, "Tên tài khoản này đã tồn tại trên hệ thống!"
+            ten_dang_nhap_chuandanh = ten_dang_nhap.strip().lower()
+            ket_qua = self.ket_noi_supabase.table("users").select("*").eq("username", ten_dang_nhap_chuandanh).execute()
+            if ket_qua.data:
+                return False, "Tài khoản này đã tồn tại!"
             
-            hashed_pw = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+            mat_khau_ma_hoa = bcrypt.hashpw(mat_khau.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
             
-            self.supabase.table("users").insert({
-                "full_name": full_name.strip(),
-                "username": username_clean,
-                "password_hash": hashed_pw
+            self.ket_noi_supabase.table("users").insert({
+                "full_name": ho_ten.strip(),
+                "username": ten_dang_nhap_chuandanh,
+                "password_hash": mat_khau_ma_hoa
             }).execute()
             
-            return True, "Đăng ký tài khoản thành công!"
+            return True, "Đăng ký thành công!"
         except Exception as e:
             return False, f"Lỗi đăng ký: {str(e)}"
 
-    def authenticate_user(self, username, password):
-        """Xác thực thông tin đăng nhập của người dùng"""
-        if not self.supabase:
-            return None, "Chưa kết nối Database Supabase!"
+    def xac_thuc_dang_nhap(self, ten_dang_nhap, mat_khau):
+        if not self.ket_noi_supabase:
+            return None, "Chưa kết nối CSDL!"
         try:
-            username_clean = username.strip().lower()
-            res = self.supabase.table("users").select("*").eq("username", username_clean).execute()
-            if not res.data:
-                return None, "Tên tài khoản hoặc mật khẩu không chính xác!"
+            ten_dang_nhap_chuandanh = ten_dang_nhap.strip().lower()
+            ket_qua = self.ket_noi_supabase.table("users").select("*").eq("username", ten_dang_nhap_chuandanh).execute()
+            if not ket_qua.data:
+                return None, "Sai tên tài khoản hoặc mật khẩu!"
             
-            user_info = res.data[0]
-            stored_hash = user_info["password_hash"].encode('utf-8')
+            thong_tin_nguoi_dung = ket_qua.data[0]
+            mat_khau_da_luu = thong_tin_nguoi_dung["password_hash"].encode('utf-8')
             
-            if bcrypt.checkpw(password.encode('utf-8'), stored_hash):
-                return user_info, "Đăng nhập thành công!"
+            if bcrypt.checkpw(mat_khau.encode('utf-8'), mat_khau_da_luu):
+                return thong_tin_nguoi_dung, "Đăng nhập thành công!"
             else:
-                return None, "Tên tài khoản hoặc mật khẩu không chính xác!"
+                return None, "Sai tên tài khoản hoặc mật khẩu!"
         except Exception as e:
             return None, f"Lỗi đăng nhập: {str(e)}"
 
-    # --- TRA CỨU WEB REAL-TIME ---
-    def search_web(self, query, max_results=5):
+    # --- TÌM KIẾM WEB REAL-TIME ---
+    def tim_kiem_web(self, cau_hoi, so_ket_qua_toi_da=5):
         try:
-            results = []
-            with DDGS() as ddgs:
-                ddg_results = list(ddgs.text(query, region="vn-vi", max_results=max_results))
-                if not ddg_results:
-                    ddg_results = list(ddgs.text(query, max_results=max_results))
+            danh_sach_ket_qua = []
+            with DDGS() as tim_kiem:
+                ket_qua_raw = list(tim_kiem.text(cau_hoi, region="vn-vi", max_results=so_ket_qua_toi_da))
+                if not ket_qua_raw:
+                    ket_qua_raw = list(tim_kiem.text(cau_hoi, max_results=so_ket_qua_toi_da))
                 
-                for r in ddg_results:
-                    title = r.get('title', '')
-                    href = r.get('href', '')
-                    body = r.get('body', '')
-                    if body:
-                        results.append(f"📌 **{title}**\nNguồn: {href}\nNội dung: {body}\n")
+                for r in ket_qua_raw:
+                    tieu_de = r.get('title', '')
+                    duong_dan = r.get('href', '')
+                    noi_dung = r.get('body', '')
+                    if noi_dung:
+                        danh_sach_ket_qua.append(f"📌 **{tieu_de}**\nNguồn: {duong_dan}\nNội dung: {noi_dung}\n")
                         
-            return "\n".join(results) if results else "CHƯA_CÓ_KẾT_QUẢ"
+            return "\n".join(danh_sach_ket_qua) if danh_sach_ket_qua else "CHƯA_CÓ_KẾT_QUẢ"
         except Exception as e:
-            print(f"Lỗi tìm kiếm web: {e}")
-            return f"Lỗi truy cập kết quả tìm kiếm Web: {str(e)}"
+            return f"Lỗi tìm kiếm web: {str(e)}"
 
     # --- TỰ ĐỘNG ĐẶT TÊN CHAT ---
-    def generate_chat_title(self, first_user_message):
-        if not self.client:
+    def tao_tieu_de_chat(self, cau_hoi_dau_tien):
+        if not self.danh_sach_keys:
             return "Cuộc trò chuyện mới"
-        try:
-            prompt = (
-                f"Hãy tạo một tiêu đề ngắn gọn (từ 3 đến 5 từ) bằng tiếng Việt cho cuộc trò chuyện có câu hỏi đầu tiên là: '{first_user_message}'. "
-                "Chỉ trả về duy nhất chuỗi tiêu đề, không ghi thêm dấu ngoặc kép hay từ thừa."
-            )
-            response = self.client.chat.completions.create(
-                model=self.text_model,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.3,
-                max_tokens=20
-            )
-            title = response.choices[0].message.content.strip().replace('"', '')
-            return title if title else "Cuộc trò chuyện mới"
-        except Exception:
-            return "Cuộc trò chuyện mới"
-
-    # --- TRÍCH XUẤT PHẦN VĂN BẢN TÀI LIỆU DÀI ---
-    def retrieve_relevant_chunks(self, full_text, query, chunk_size=1500, top_k=3):
-        if len(full_text) <= chunk_size * 2:
-            return full_text
-
-        chunks = [full_text[i:i+chunk_size] for i in range(0, len(full_text), chunk_size - 200)]
-        query_words = set(query.lower().split())
-        scored_chunks = []
-        for chunk in chunks:
-            chunk_lower = chunk.lower()
-            score = sum(1 for word in query_words if len(word) > 2 and word in chunk_lower)
-            scored_chunks.append((score, chunk))
         
-        scored_chunks.sort(key=lambda x: x[0], reverse=True)
-        selected_chunks = [item[1] for item in scored_chunks[:top_k]]
-        return "\n\n...[Đoạn trích xuất từ tài liệu]...\n\n".join(selected_chunks)
+        yeu_cau = (
+            f"Tạo tiêu đề ngắn gọn (3 đến 5 từ) bằng tiếng Việt cho đoạn chat có câu hỏi đầu tiên: '{cau_hoi_dau_tien}'. "
+            "Chỉ trả về duy nhất chuỗi tiêu đề, không ghi thêm dấu ngoặc kép hay từ thừa."
+        )
 
-    # --- XUẤT ĐOẠN CHAT RA FILE WORD ---
-    def export_chat_to_word(self, messages, chat_title):
-        doc = docx.Document()
-        doc.add_heading(f"BÁO CÁO TRÒ CHUYỆN: {chat_title}", level=1)
-        doc.add_paragraph("Được trích xuất từ Hệ thống NEXUS AI\n-----------------------------------")
+        for key in self.danh_sach_keys:
+            try:
+                client_tam = Groq(api_key=key)
+                phan_hoi = client_tam.chat.completions.create(
+                    model=self.mo_hinh_van_ban,
+                    messages=[{"role": "user", "content": yeu_cau}],
+                    temperature=0.3,
+                    max_tokens=20
+                )
+                tieu_de = phan_hoi.choices[0].message.content.strip().replace('"', '')
+                return tieu_de if tieu_de else "Cuộc trò chuyện mới"
+            except Exception:
+                continue
+        return "Cuộc trò chuyện mới"
+
+    # --- BỘ LỌC TÀI LIỆU DÀI (LIGHT RAG) ---
+    def trich_xuat_doan_lien_quan(self, van_ban_goc, cau_hoi, kich_thuoc_doan=1500, so_doan_lay=3):
+        if len(van_ban_goc) <= kich_thuoc_doan * 2:
+            return van_ban_goc
+
+        danh_sach_doan = [van_ban_goc[i:i+kich_thuoc_doan] for i in range(0, len(van_ban_goc), kich_thuoc_doan - 200)]
+        tu_khoa_cau_hoi = set(cau_hoi.lower().split())
+        doan_co_diem = []
         
-        for m in messages:
-            role_name = "NGƯỜI DÙNG" if m["role"] == "user" else "TRỢ LÝ AI"
-            content_text = m.get("display_content", m["content"])
-            
-            p = doc.add_paragraph()
-            p.add_run(f"[{role_name}]:\n").bold = True
-            p.add_run(f"{content_text}\n")
-            
-        target_stream = io.BytesIO()
-        doc.save(target_stream)
-        target_stream.seek(0)
-        return target_stream
+        for doan in danh_sach_doan:
+            doan_chuyen_thuong = doan.lower()
+            diem = sum(1 for tu in tu_khoa_cau_hoi if len(tu) > 2 and tu in doan_chuyen_thuong)
+            doan_co_diem.append((diem, doan))
+        
+        doan_co_diem.sort(key=lambda x: x[0], reverse=True)
+        doan_duoc_chon = [muc[1] for muc in doan_co_diem[:so_doan_lay]]
+        return "\n\n...[Đoạn trích xuất từ tài liệu]...\n\n".join(doan_duoc_chon)
 
-    # --- XỬ LÝ SUPABASE DATABASE RIÊNG BIỆT CHO TỪNG USER_ID ---
-    def load_user_chats(self, user_id):
-        if not self.supabase:
+    # --- XUẤT CHAT RA FILE WORD ---
+    def xuat_chat_ra_file_word(self, danh_sach_tin_nhan, tieu_de_chat):
+        tai_lieu = docx.Document()
+        tai_lieu.add_heading(f"BÁO CÁO TRÒ CHUYỆN: {tieu_de_chat}", level=1)
+        tai_lieu.add_paragraph("Trích xuất từ Hệ thống NEXUS AI\n-----------------------------------")
+        
+        for tin_nhan in danh_sach_tin_nhan:
+            ten_vai_tro = "NGƯỜI DÙNG" if tin_nhan["role"] == "user" else "TRỢ LÝ AI"
+            noi_dung = tin_nhan.get("display_content", tin_nhan["content"])
+            
+            doan_van = tai_lieu.add_paragraph()
+            doan_van.add_run(f"[{ten_vai_tro}]:\n").bold = True
+            doan_van.add_run(f"{noi_dung}\n")
+            
+        luong_bo_nho = io.BytesIO()
+        tai_lieu.save(luong_bo_nho)
+        luong_bo_nho.seek(0)
+        return luong_bo_nho
+
+    # --- SUPABASE DATABASE (PHÂN QUYỀN CÁ NHÂN HÓA) ---
+    def tai_danh_sach_chat_nguoi_dung(self, id_nguoi_dung):
+        if not self.ket_noi_supabase:
             return {}
         try:
-            res = self.supabase.table("chats").select("*").eq("user_id", str(user_id)).order("created_at", desc=False).execute()
-            chats = {}
-            for row in res.data:
-                chat_id = row["id"]
-                title = row["title"]
-                msg_res = self.supabase.table("messages").select("*").eq("chat_id", chat_id).order("created_at", desc=False).execute()
-                chats[title] = {
-                    "id": chat_id,
+            ket_qua = self.ket_noi_supabase.table("chats").select("*").eq("user_id", str(id_nguoi_dung)).order("created_at", desc=False).execute()
+            du_lieu_chats = {}
+            for hang in ket_qua.data:
+                id_chat = hang["id"]
+                tieu_de = hang["title"]
+                ket_qua_tin_nhan = self.ket_noi_supabase.table("messages").select("*").eq("chat_id", id_chat).order("created_at", desc=False).execute()
+                du_lieu_chats[tieu_de] = {
+                    "id": id_chat,
                     "messages": [
                         {
                             "role": m["role"],
                             "content": m["content"],
                             "display_content": m.get("display_content") or m["content"]
-                        } for m in msg_res.data
+                        } for m in ket_qua_tin_nhan.data
                     ]
                 }
-            return chats
+            return du_lieu_chats
         except Exception as e:
-            print(f"Lỗi load DB: {e}")
+            print(f"Lỗi nạp DB: {e}")
             return {}
 
-    def save_chat_node(self, chat_id, title, user_id):
-        if self.supabase:
+    def luu_phien_chat(self, id_chat, tieu_de, id_nguoi_dung):
+        if self.ket_noi_supabase:
             try:
-                self.supabase.table("chats").upsert({"id": chat_id, "title": title, "user_id": str(user_id)}).execute()
+                self.ket_noi_supabase.table("chats").upsert({"id": id_chat, "title": tieu_de, "user_id": str(id_nguoi_dung)}).execute()
             except Exception as e:
-                print(f"Lỗi save chat node: {e}")
+                print(f"Lỗi lưu phiên chat: {e}")
 
-    def save_message(self, chat_id, role, content, display_content=""):
-        if self.supabase:
+    def luu_tin_nhan(self, id_chat, vai_tro, noi_dung, noi_dung_hien_thi=""):
+        if self.ket_noi_supabase:
             try:
-                self.supabase.table("messages").insert({
-                    "chat_id": chat_id,
-                    "role": role,
-                    "content": content,
-                    "display_content": display_content
+                self.ket_noi_supabase.table("messages").insert({
+                    "chat_id": id_chat,
+                    "role": vai_tro,
+                    "content": noi_dung,
+                    "display_content": noi_dung_hien_thi
                 }).execute()
             except Exception as e:
-                print(f"Lỗi save message: {e}")
+                print(f"Lỗi lưu tin nhắn: {e}")
 
-    def delete_chat(self, chat_id):
-        if self.supabase:
+    def xoa_phien_chat(self, id_chat):
+        if self.ket_noi_supabase:
             try:
-                self.supabase.table("chats").delete().eq("id", chat_id).execute()
+                self.ket_noi_supabase.table("chats").delete().eq("id", id_chat).execute()
             except Exception as e:
-                print(f"Lỗi delete chat: {e}")
+                print(f"Lỗi xóa phiên chat: {e}")
 
-    def update_chat_title(self, chat_id, new_title):
-        if self.supabase:
+    def cap_nhat_tieu_de_chat(self, id_chat, tieu_de_moi):
+        if self.ket_noi_supabase:
             try:
-                self.supabase.table("chats").update({"title": new_title}).eq("id", chat_id).execute()
+                self.ket_noi_supabase.table("chats").update({"title": tieu_de_moi}).eq("id", id_chat).execute()
             except Exception as e:
-                print(f"Lỗi update title: {e}")
+                print(f"Lỗi cập nhật tiêu đề: {e}")
 
-    # --- ĐỌC TỆP ĐA ĐỊNH DẠNG ---
-    def extract_pdf(self, file_bytes):
+    # --- ĐỌC CÁC TỆP ĐÍNH KÈM ---
+    def doc_file_pdf(self, luong_bytes_file):
         try:
-            reader = PdfReader(file_bytes)
-            text_pages = []
-            for i, page in enumerate(reader.pages):
-                txt = page.extract_text()
-                if txt and txt.strip():
-                    text_pages.append(f"[Trang {i+1}]: {txt.strip()}")
-            full_text = "\n".join(text_pages)
-            return full_text if full_text.strip() else "PDF_IS_SCANNED_IMAGE"
+            doc_pdf = PdfReader(luong_bytes_file)
+            cac_trang_van_ban = []
+            for i, trang in enumerate(doc_pdf.pages):
+                van_ban = trang.extract_text()
+                if van_ban and van_ban.strip():
+                    cac_trang_van_ban.append(f"[Trang {i+1}]: {van_ban.strip()}")
+            van_ban_day_du = "\n".join(cac_trang_van_ban)
+            return van_ban_day_du if van_ban_day_du.strip() else "PDF_IS_SCANNED_IMAGE"
         except Exception as e:
-            return f"Lỗi khi đọc file PDF: {str(e)}"
+            return f"Lỗi đọc file PDF: {str(e)}"
 
-    def extract_word(self, file_bytes):
+    def doc_file_word(self, luong_bytes_file):
         try:
-            doc = docx.Document(file_bytes)
-            return "\n".join([p.text for p in doc.paragraphs if p.text.strip()])
+            doc_word = docx.Document(luong_bytes_file)
+            return "\n".join([doan.text for doan in doc_word.paragraphs if doan.text.strip()])
         except Exception as e:
-            return f"Lỗi khi đọc file Word: {str(e)}"
+            return f"Lỗi đọc file Word: {str(e)}"
 
-    def extract_excel(self, file_bytes):
+    def doc_file_excel(self, luong_bytes_file):
         try:
-            df_dict = pd.read_excel(file_bytes, sheet_name=None)
-            extracted_text = []
-            for sheet_name, df in df_dict.items():
-                extracted_text.append(f"--- Sheet: {sheet_name} ---")
-                extracted_text.append(df.to_markdown(index=False))
-            return "\n".join(extracted_text)
+            bang_excel = pd.read_excel(luong_bytes_file, sheet_name=None)
+            van_ban_trich_xuat = []
+            for ten_sheet, df in bang_excel.items():
+                van_ban_trich_xuat.append(f"--- Sheet: {ten_sheet} ---")
+                van_ban_trich_xuat.append(df.to_markdown(index=False))
+            return "\n".join(van_ban_trich_xuat)
         except Exception as e:
-            return f"Lỗi khi đọc file Excel: {str(e)}"
+            return f"Lỗi đọc file Excel: {str(e)}"
 
-    def analyze_image(self, file_bytes, prompt="Hãy đọc và trích xuất toàn bộ chữ viết có trong hình này."):
-        if not self.client:
-            return "Chưa cấu hình GROQ_API_KEY."
-        try:
-            base64_image = base64.b64encode(file_bytes.getvalue()).decode('utf-8')
-            response = self.client.chat.completions.create(
-                model=self.vision_model,
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": prompt},
-                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
-                        ]
-                    }
-                ],
-                temperature=0.2,
-                max_tokens=2048
-            )
-            return response.choices[0].message.content.strip()
-        except Exception as e:
-            return f"Lỗi Vision AI: {str(e)}"
-
-    # --- CHAT STREAMING KỶ LUẬT ĐỘ CHÍNH XÁC CAO ---
-    def chat_stream(self, clean_messages_history, web_search_context=""):
-        if not self.client:
-            yield "Chưa tìm thấy API Key Groq."
-            return
-        try:
-            system_instruction_text = (
-                "Bạn là Trợ lý AI giáo dục thông minh và hữu ích của Nhóm NEXUS. "
-                "TUÂN THỦ NGUYÊN TẮC VÀNG: Trả lời chính xác, khoa học, logic bằng tiếng Việt. "
-                "Nếu gặp câu hỏi không đủ thông tin hoặc nằm ngoài tri thức chắc chắn, hãy thẳng thắn trả lời 'Tôi không đủ thông tin chắc chắn về vấn đề này' chứ tuyệt đối không được tự đoán. "
-                "Sử dụng Markdown rõ ràng và LaTeX ($...$) cho công thức toán/hóa."
-            )
-            
-            if web_search_context and web_search_context != "CHƯA_CÓ_KẾT_QUẢ":
-                system_instruction_text += (
-                    f"\n\n[DỮ LIỆU TRA CỨU MỚI NHẤT TỪ WEB REAL-TIME]:\n{web_search_context}\n\n"
-                    "Hãy tổng hợp thông tin từ nguồn tra cứu trên để trả lời trực tiếp cho người dùng."
+    def phan_tich_hinh_anh(self, luong_bytes_file, yeu_cau="Đọc và trích xuất toàn bộ chữ viết có trong hình này."):
+        if not self.danh_sach_keys:
+            return "Chưa cấu hình API Key."
+        
+        anh_base64 = base64.b64encode(luong_bytes_file.getvalue()).decode('utf-8')
+        
+        for key in self.danh_sach_keys:
+            try:
+                client_tam = Groq(api_key=key)
+                phan_hoi = client_tam.chat.completions.create(
+                    model=self.mo_hinh_hinh_anh,
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": yeu_cau},
+                                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{anh_base64}"}}
+                            ]
+                        }
+                    ],
+                    temperature=0.2,
+                    max_tokens=2048
                 )
+                return phan_hoi.choices[0].message.content.strip()
+            except Exception:
+                continue
+        return "Lỗi Vision AI: Không thể xử lý hình ảnh qua các Key hiện tại."
 
-            system_instruction = {"role": "system", "content": system_instruction_text}
-            api_messages = [system_instruction] + clean_messages_history
-            
-            response_stream = self.client.chat.completions.create(
-                messages=api_messages,
-                model=self.text_model,
-                temperature=0.0,
-                max_tokens=4000,
-                stream=True
+    # --- CHAT STREAMING CÓ TÍNH NĂNG XOAY API KEY TỰ ĐỘNG ---
+    def luong_phan_hoi_chat(self, lich_su_tin_nhan_sach, ngu_canh_web=""):
+        if not self.danh_sach_keys:
+            yield "Chưa cấu hình API Key Groq."
+            return
+
+        huong_dan_he_thong = (
+            "Bạn là Trợ lý AI giáo dục thông minh của Nhóm NEXUS. "
+            "Trả lời chính xác, khoa học bằng tiếng Việt. "
+            "Nếu không đủ thông tin, hãy thẳng thắn trả lời 'Tôi không đủ thông tin chắc chắn về vấn đề này', không tự đoán. "
+            "Dùng Markdown và LaTeX ($...$) cho công thức toán/hóa."
+        )
+        
+        if ngu_canh_web and ngu_canh_web != "CHƯA_CÓ_KẾT_QUẢ":
+            huong_dan_he_thong += (
+                f"\n\n[DỮ LIỆU TRA CỨU WEB REAL-TIME]:\n{ngu_canh_web}\n\n"
+                "Tổng hợp thông tin trên để trả lời người dùng."
             )
-            for chunk in response_stream:
-                if chunk.choices[0].delta.content:
-                    yield chunk.choices[0].delta.content
-        except Exception as e:
-            yield f"Lỗi kết nối AI: {str(e)}"
+
+        tin_nhan_he_thong = {"role": "system", "content": huong_dan_he_thong}
+        danh_sach_tin_nhan_gui = [tin_nhan_he_thong] + lich_su_tin_nhan_sach
+
+        # Vòng lặp xoay API Key tự động khi gặp lỗi rate limit (429)
+        for idx, key in enumerate(self.danh_sach_keys):
+            try:
+                client_tam = Groq(api_key=key)
+                luong_phan_hoi = client_tam.chat.completions.create(
+                    messages=danh_sach_tin_nhan_gui,
+                    model=self.mo_hinh_van_ban, # Model llama-3.1-8b-instant
+                    temperature=0.0,
+                    max_tokens=4000,
+                    stream=True
+                )
+                for mieng_chu in luong_phan_hoi:
+                    if mieng_chu.choices[0].delta.content:
+                        yield mieng_chu.choices[0].delta.content
+                return
+            except Exception as e:
+                chuoi_loi = str(e)
+                if "429" in chuoi_loi or "rate_limit_exceeded" in chuoi_loi:
+                    print(f"API Key số {idx+1} hết hạn mức! Đang tự động chuyển sang Key tiếp theo...")
+                    continue
+                else:
+                    yield f"Lỗi kết nối AI: {chuoi_loi}"
+                    return
+
+        yield "Tất cả các API Key dự phòng đều đã chạm hạn mức ngày! Vui lòng thử lại sau."
