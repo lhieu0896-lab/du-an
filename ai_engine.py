@@ -11,7 +11,6 @@ from supabase import create_client, Client
 from duckduckgo_search import DDGS
 import streamlit as st
 
-# Ép hệ thống dùng chuẩn UTF-8
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
 
@@ -49,16 +48,13 @@ class AIEngine:
         self.text_model = "llama-3.3-70b-versatile"
         self.vision_model = "llama-3.2-11b-vision-preview"
 
-    # --- TÍNH NĂNG 1: TÌM KIẾM WEB TIẾNG VIỆT REAL-TIME ---
+    # --- TÌM KIẾM WEB REAL-TIME ---
     def search_web(self, query, max_results=5):
-        """Tìm kiếm web tiếng Việt tối ưu bằng DuckDuckGo"""
         try:
             results = []
             with DDGS() as ddgs:
-                # Tìm kiếm ưu tiên khu vực Việt Nam
                 ddg_results = list(ddgs.text(query, region="vn-vi", max_results=max_results))
                 if not ddg_results:
-                    # Nếu chưa có kết quả thì tìm kiếm toàn cầu
                     ddg_results = list(ddgs.text(query, max_results=max_results))
                 
                 for r in ddg_results:
@@ -73,7 +69,7 @@ class AIEngine:
             print(f"Lỗi tìm kiếm web: {e}")
             return f"Lỗi truy cập kết quả tìm kiếm Web: {str(e)}"
 
-    # --- TÍNH NĂNG 2: TỰ ĐỘNG ĐẶT TÊN DỰA TRÊN CÂU HỎI ---
+    # --- TỰ ĐỘNG ĐẶT TÊN DỰA TRÊN CÂU HỎI ---
     def generate_chat_title(self, first_user_message):
         if not self.client:
             return "Cuộc trò chuyện mới"
@@ -93,7 +89,7 @@ class AIEngine:
         except Exception:
             return "Cuộc trò chuyện mới"
 
-    # --- TÍNH NĂNG 3: TRÍCH XUẤT ĐOẠN TÀI LIỆU DÀI (LIGHT RAG) ---
+    # --- TRÍCH XUẤT ĐOẠN TÀI LIỆU DÀI ---
     def retrieve_relevant_chunks(self, full_text, query, chunk_size=1500, top_k=3):
         if len(full_text) <= chunk_size * 2:
             return full_text
@@ -109,6 +105,25 @@ class AIEngine:
         scored_chunks.sort(key=lambda x: x[0], reverse=True)
         selected_chunks = [item[1] for item in scored_chunks[:top_k]]
         return "\n\n...[Đoạn trích xuất từ tài liệu]...\n\n".join(selected_chunks)
+
+    # --- TÍNH NĂNG TẠO FILE WORD ĐỂ TẢI CHAT VỀ MÁY ---
+    def export_chat_to_word(self, messages, chat_title):
+        doc = docx.Document()
+        doc.add_heading(f"BÁO CÁO TRÒ CHUYỆN: {chat_title}", level=1)
+        doc.add_paragraph("Được trích xuất từ Hệ thống Web AI Trí Tuệ\n-----------------------------------")
+        
+        for m in messages:
+            role_name = "NGƯỜI DÙNG" if m["role"] == "user" else "TRỢ LÝ AI"
+            content_text = m.get("display_content", m["content"])
+            
+            p = doc.add_paragraph()
+            p.add_run(f"[{role_name}]:\n").bold = True
+            p.add_run(f"{content_text}\n")
+            
+        target_stream = io.BytesIO()
+        doc.save(target_stream)
+        target_stream.seek(0)
+        return target_stream
 
     # --- SUPABASE DATABASE ---
     def load_all_chats(self):
@@ -224,24 +239,22 @@ class AIEngine:
         except Exception as e:
             return f"Lỗi Vision AI: {str(e)}"
 
-    # --- HÀM CHAT STREAMING BẮT BUỘC ĐỌC VÀ TỔNG HỢP WEB CONTEXT ---
+    # --- CHAT STREAMING ---
     def chat_stream(self, clean_messages_history, web_search_context=""):
         if not self.client:
             yield "Chưa tìm thấy API Key Groq."
             return
         try:
             system_instruction_text = (
-                "Bạn là Trợ lý AI giáo dục thông minh và hữu ích như Gemini. "
-                "Hãy trả lời tự nhiên, chính xác, lịch sự bằng tiếng Việt. "
-                "Định dạng Markdown đẹp mắt, dùng LaTeX ($...$) cho công thức toán/hóa."
+                "Bạn là Trợ lý Trí Tuệ Nhân Tạo Chuyên Nghiệp của Nhóm. "
+                "Trả lời thông minh, khoa học, logic, hỗ trợ tốt nhất về lập trình, giải toán, dịch thuật. "
+                "Sử dụng Markdown rõ ràng và LaTeX ($...$) cho công thức toán/hóa."
             )
             
             if web_search_context and web_search_context != "CHƯA_CÓ_KẾT_QUẢ":
                 system_instruction_text += (
-                    f"\n\n[DỮ LIỆU BỔ SUNG TRUY CẤP TỪ WEB REAL-TIME]:\n{web_search_context}\n\n"
-                    "CẢNH BÁO QUAN TRỌNG: Người dùng đang truy vấn thông tin thực tế. "
-                    "Hãy ưu tiên sử dụng thông tin từ mục [DỮ LIỆU BỔ SUNG TRUY CẤP TỪ WEB REAL-TIME] ở trên để tổng hợp và trả lời trực tiếp cho người dùng. "
-                    "Tuyệt đối KHÔNG trả lời là 'tôi không thể truy cập internet'."
+                    f"\n\n[DỮ LIỆU TRA CỨU MỚI NHẤT TỪ WEB REAL-TIME]:\n{web_search_context}\n\n"
+                    "Hãy tổng hợp thông tin từ nguồn tra cứu trên để trả lời trực tiếp cho người dùng."
                 )
 
             system_instruction = {"role": "system", "content": system_instruction_text}
