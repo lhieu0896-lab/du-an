@@ -177,14 +177,15 @@ def tu_dong_chuyen_theme(van_ban_phan_tich):
     if any(tk in text_check for tk in ["lịch sử", "30/4", "2/9", "chủ tịch", "nhà nước", "nguyễn phú trọng", "điện biên phủ", "kháng chiến", "chiến tranh", "đảng", "cách mạng"]):
         banner = """
         <div class="theme-banner-box">
-            <div class="theme-banner-icon">🏛️🇻🇳</div>
+            <div class="theme-banner-icon">🏛️📜🥁</div>
             <div>
-                <div class="theme-banner-title">Chủ Đề: Lịch Sử & Di Tế Quốc Gia</div>
-                <div class="theme-banner-desc">Hệ thống kích hoạt dữ liệu tra cứu sự kiện, tư liệu lịch sử và mốc thời gian cách mạng.</div>
+                <div class="theme-banner-title">Chủ Đề: Lịch Sử Cổ Đổi & Bảng Vàng Sử Sách</div>
+                <div class="theme-banner-desc">Hệ thống kích hoạt không gian bảo tàng hoài niệm, trích xuất tư liệu di tích và mốc thời gian lịch sử.</div>
             </div>
         </div>
         """
-        kich_hoat_theme("#851814", "#facc15", "#ffffff", ["🇻🇳", "⭐", "🇻🇳", "✨", "⭐"], banner, "Kích hoạt Theme Lịch sử!", "🇻🇳")
+        # Sử dụng gam màu Nâu Đất Cổ (#2b1b17) và Vàng Đồng Antique (#d97706)
+        kich_hoat_theme("#2b1b17", "#d97706", "#ffffff", ["🏛️", "📜", "📜", "⏳", "🥁"], banner, "Kích hoạt Theme Lịch sử Cổ điển!", "📜")
         
     elif any(tk in text_check for tk in ["toán", "đại số", "hình học", "phương trình", "định lý", "pytago", "tích phân", "đạo hàm", "số học", "góc", "tam giác"]):
         banner = """
