@@ -4,7 +4,7 @@ from ai_engine import AIEngine
 
 # 1. Cấu hình trang Web Chat
 st.set_page_config(
-    page_title="Trợ Lý Web AI Đa Năng",
+    page_title="Trợ Lý AI Đa Năng",
     page_icon="🤖",
     layout="wide"
 )
@@ -16,95 +16,105 @@ def tai_mo_hinh_ai():
 
 mo_hinh_ai = tai_mo_hinh_ai()
 
-# 3. Khởi tạo Lịch sử Chat
-if "messages" not in st.session_state:
-    st.session_state.messages = [
-        {"role": "assistant", "content": "Xin chào! Tôi là Trợ lý AI Đa năng. Bạn có thể trò chuyện hoặc đính kèm tệp **PDF, Word, Excel, Ảnh (PNG, JPG)** để tôi phân tích giúp nhé!"}
-    ]
-
-# 4. Thanh Sidebar Tải Tệp & Tùy chọn
-with st.sidebar:
-    st.title("📁 Tải Tệp Tài Liệu / Ảnh")
-    st.caption("Hỗ trợ tệp: PDF, DOCX, XLSX, XLS, PNG, JPG, JPEG, TXT")
-    
-    uploaded_file = st.file_uploader(
-        "Chọn tệp đính kèm gửi cho AI:",
-        type=["pdf", "docx", "xlsx", "xls", "png", "jpg", "jpeg", "txt"]
-    )
-    
-    st.divider()
-    st.title("⚙️ Tùy Chọn")
-    st.write("🤖 **Model Văn bản:** Groq Llama 3.3 70B")
-    st.write("👁️ **Model Hình ảnh:** Groq Llama 3.2 Vision 11B")
-    
-    if st.button("🗑️ Xóa Lịch Sử Chat", use_container_width=True):
-        st.session_state.messages = [
-            {"role": "assistant", "content": "Lịch sử trò chuyện đã được làm mới. Hãy gửi câu hỏi hoặc tệp mới nhé!"}
+# 3. Quản lý các Phiên Chat (Chat Sessions) giống Gemini
+if "chats" not in st.session_state:
+    st.session_state.chats = {
+        "Cuộc trò chuyện 1": [
+            {"role": "assistant", "content": "Xin chào! Tôi là Trợ lý AI. Bạn có thể đính kèm tệp PDF (như sách HSK 2), Word, Excel, Ảnh để tôi đọc và ghi nhớ nhé!"}
         ]
+    }
+
+if "current_chat" not in st.session_state:
+    st.session_state.current_chat = "Cuộc trò chuyện 1"
+
+# 4. Thanh Sidebar Quản lý Lịch sử Chat giống hệt Gemini
+with st.sidebar:
+    st.title("💬 Lịch Sử Trò Chuyện")
+    
+    if st.button("➕ Tạo cuộc trò chuyện mới", use_container_width=True):
+        new_chat_name = f"Cuộc trò chuyện {len(st.session_state.chats) + 1}"
+        st.session_state.chats[new_chat_name] = [
+            {"role": "assistant", "content": "Phiên trò chuyện mới đã bắt đầu. Hãy gửi câu hỏi hoặc tệp đính kèm nhé!"}
+        ]
+        st.session_state.current_chat = new_chat_name
         st.rerun()
 
-# 5. Tiêu đề ứng dụng
-st.title("💬 Trợ Lý AI Đa Năng & Đa Phương Tiện")
-st.caption("Hệ thống Web AI thuần túy - Phân tích tệp Văn bản, Bảng tính Excel & Nhận diện Hình ảnh")
+    st.write("---")
+    chat_list = list(st.session_state.chats.keys())
+    selected_chat = st.radio("Các đoạn chat cũ:", chat_list, index=chat_list.index(st.session_state.current_chat))
+    st.session_state.current_chat = selected_chat
 
-# 6. Hiển thị Lịch sử Tin nhắn
-for message in st.session_state.messages:
+    st.divider()
+    st.title("📁 Tải Tệp Đính Kèm")
+    uploaded_file = st.file_uploader(
+        "Tải tệp PDF, DOCX, XLSX, Ảnh:",
+        type=["pdf", "docx", "xlsx", "xls", "png", "jpg", "jpeg", "txt"]
+    )
+
+# 5. Màn hình chính
+st.title("💬 Trợ Lý Web AI Trực Tuyến")
+st.caption(f"Phiên làm việc hiện tại: **{st.session_state.current_chat}**")
+
+# Hiển thị lịch sử tin nhắn của cuộc trò chuyện đang chọn
+current_messages = st.session_state.chats[st.session_state.current_chat]
+for message in current_messages:
     with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+        st.markdown(message["display_content"] if "display_content" in message else message["content"])
 
-# 7. Xử lý khi Người dùng gửi câu hỏi hoặc tải tệp
-if user_input := st.chat_input("Nhập câu hỏi hoặc yêu cầu AI phân tích..."):
+# 6. Xử lý khi Người dùng nhắn tin hoặc gửi file
+if user_input := st.chat_input("Nhập câu hỏi hoặc yêu cầu AI từ tệp..."):
     
-    # 7a. Nếu có tệp đính kèm từ Sidebar
-    file_content_prompt = ""
+    extracted_text_from_file = ""
+    display_file_note = ""
+
+    # Nếu có tệp đính kèm
     if uploaded_file is not None:
         file_bytes = io.BytesIO(uploaded_file.getvalue())
         file_name = uploaded_file.name
         file_ext = file_name.split(".")[-1].lower()
         
-        with st.spinner(f"Đang xử lý tệp {file_name}..."):
-            try:
-                if file_ext == "pdf":
-                    text_extracted = mo_hinh_ai.extract_pdf(file_bytes)
-                    file_content_prompt = f"\n\n[Nội dung từ tệp PDF '{file_name}']:\n{text_extracted}"
-                elif file_ext == "docx":
-                    text_extracted = mo_hinh_ai.extract_word(file_bytes)
-                    file_content_prompt = f"\n\n[Nội dung từ tệp Word '{file_name}']:\n{text_extracted}"
-                elif file_ext in ["xlsx", "xls"]:
-                    text_extracted = mo_hinh_ai.extract_excel(file_bytes)
-                    file_content_prompt = f"\n\n[Dữ liệu Bảng tính Excel '{file_name}']:\n{text_extracted}"
-                elif file_ext in ["png", "jpg", "jpeg"]:
-                    text_extracted = mo_hinh_ai.analyze_image(file_bytes)
-                    file_content_prompt = f"\n\n[Kết quả phân tích từ Hình Ảnh '{file_name}']:\n{text_extracted}"
-                elif file_ext == "txt":
-                    text_extracted = uploaded_file.getvalue().decode("utf-8")
-                    file_content_prompt = f"\n\n[Nội dung tệp TXT '{file_name}']:\n{text_extracted}"
-            except Exception as err:
-                st.error(f"Lỗi đọc tệp {file_name}: {err}")
+        with st.spinner(f"Đang đọc và phân tích toàn bộ tệp '{file_name}'..."):
+            if file_ext == "pdf":
+                extracted_text_from_file = mo_hinh_ai.extract_pdf(file_bytes)
+            elif file_ext == "docx":
+                extracted_text_from_file = mo_hinh_ai.extract_word(file_bytes)
+            elif file_ext in ["xlsx", "xls"]:
+                extracted_text_from_file = mo_hinh_ai.extract_excel(file_bytes)
+            elif file_ext in ["png", "jpg", "jpeg"]:
+                extracted_text_from_file = mo_hinh_ai.analyze_image(file_bytes)
+            elif file_ext == "txt":
+                extracted_text_from_file = uploaded_file.getvalue().decode("utf-8")
+        
+        display_file_note = f"\n\n📎 *Đã đính kèm & đọc thành công tệp: `{file_name}`*"
 
-    # Gộp tin nhắn người dùng nhập + nội dung tệp (nếu có)
-    full_user_content = user_input + file_content_prompt
-    display_content = user_input
-    if uploaded_file:
-        display_content += f"\n\n📎 *Đã đính kèm tệp: `{uploaded_file.name}`*"
+    # Tạo nội dung đầy đủ để gửi cho AI đọc
+    if extracted_text_from_file:
+        full_api_prompt = f"Dưới đây là toàn bộ nội dung từ tệp '{uploaded_file.name}':\n\n{extracted_text_from_file}\n\n---\nYêu cầu của người dùng: {user_input}"
+    else:
+        full_api_prompt = user_input
 
-    # Hiển thị tin nhắn người dùng lên màn hình chat
+    display_prompt = user_input + display_file_note
+
+    # Hiển thị câu hỏi người dùng
     with st.chat_message("user"):
-        st.markdown(display_content)
-    
-    # Lưu vào bộ nhớ Session
-    st.session_state.messages.append({"role": "user", "content": full_user_content})
+        st.markdown(display_prompt)
+
+    # Lưu vào bộ nhớ cuộc trò chuyện hiện tại
+    current_messages.append({
+        "role": "user", 
+        "content": full_api_prompt, 
+        "display_content": display_prompt
+    })
 
     # Gọi AI trả lời
     with st.chat_message("assistant"):
-        with st.spinner("AI đang phân tích và soạn câu trả lời..."):
-            history_for_api = [
-                {"role": m["role"], "content": m["content"]} 
-                for m in st.session_state.messages
-            ]
-            
-            phan_hoi_ai = mo_hinh_ai.chat_with_memory(history_for_api)
+        with st.spinner("AI đang đọc tài liệu và ghi nhớ lịch sử..."):
+            phan_hoi_ai = mo_hinh_ai.chat_with_memory(current_messages)
             st.markdown(phan_hoi_ai)
 
-    # Lưu câu trả lời AI vào bộ nhớ
-    st.session_state.messages.append({"role": "assistant", "content": phan_hoi_ai})
+    # Lưu phản hồi AI vào bộ nhớ
+    current_messages.append({
+        "role": "assistant", 
+        "content": phan_hoi_ai, 
+        "display_content": phan_hoi_ai
+    })
