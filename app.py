@@ -17,8 +17,8 @@ def tai_mo_hinh_ai():
 
 mo_hinh_ai = tai_mo_hinh_ai()
 
-# 3. Load Lịch sử từ Supabase Database vào Session
-if "chats" not in st.session_state:
+# 3. Load Lịch sử từ Supabase Database khi khởi chạy ứng dụng
+if "chats" not in st.session_state or not st.session_state.chats:
     db_chats = mo_hinh_ai.load_all_chats()
     if db_chats:
         st.session_state.chats = db_chats
@@ -26,21 +26,32 @@ if "chats" not in st.session_state:
     else:
         init_id = str(uuid.uuid4())
         default_title = "Cuộc trò chuyện 1"
+        init_msg = "Xin chào! Lịch sử chat của bạn từ nay sẽ được lưu vĩnh viễn trên Database. Hãy bắt đầu nhắn tin nhé! ✨"
         st.session_state.chats = {
             default_title: {
                 "id": init_id,
                 "messages": [
-                    {"role": "assistant", "content": "Xin chào! Lịch sử chat của bạn từ nay sẽ được lưu vĩnh viễn trên Database. Hãy bắt đầu nhắn tin nhé! ✨"}
+                    {"role": "assistant", "content": init_msg, "display_content": init_msg}
                 ]
             }
         }
         st.session_state.current_chat = default_title
-        mo_hinh_ai.save_chat_node(init_id, default_title)
-        mo_hinh_ai.save_message(init_id, "assistant", st.session_state.chats[default_title]["messages"][0]["content"])
+        if mo_hinh_ai.db_status == "ĐÃ_KẾT_NỐI":
+            mo_hinh_ai.save_chat_node(init_id, default_title)
+            mo_hinh_ai.save_message(init_id, "assistant", init_msg, init_msg)
 
 # 4. Thanh Sidebar Quản lý Lịch sử Chat Vĩnh Viễn
 with st.sidebar:
     st.title("✨ Lịch Sử Trò Chuyện (DB)")
+    
+    # Báo trạng thái kết nối Database
+    if mo_hinh_ai.db_status == "ĐÃ_KẾT_NỐI":
+        st.success("🟢 Đã kết nối Supabase (Lưu vĩnh viễn)")
+    else:
+        st.error(f"🔴 Chưa lưu DB: {mo_hinh_ai.db_status}")
+        st.caption("Hãy kiểm tra lại SUPABASE_URL và SUPABASE_KEY trong mục Settings -> Secrets trên Streamlit Cloud!")
+    
+    st.write("---")
     
     if st.button("➕ Tạo cuộc trò chuyện mới", use_container_width=True, type="primary"):
         new_id = str(uuid.uuid4())
@@ -49,18 +60,17 @@ with st.sidebar:
         
         st.session_state.chats[new_title] = {
             "id": new_id,
-            "messages": [{"role": "assistant", "content": init_msg}]
+            "messages": [{"role": "assistant", "content": init_msg, "display_content": init_msg}]
         }
         st.session_state.current_chat = new_title
         
         # Lưu vào Database
         mo_hinh_ai.save_chat_node(new_id, new_title)
-        mo_hinh_ai.save_message(new_id, "assistant", init_msg)
+        mo_hinh_ai.save_message(new_id, "assistant", init_msg, init_msg)
         st.rerun()
 
-    st.write("---")
     chat_list = list(st.session_state.chats.keys())
-    selected_chat = st.radio("Các đoạn chat cũ:", chat_list, index=chat_list.index(st.session_state.current_chat))
+    selected_chat = st.radio("Các đoạn chat đã lưu:", chat_list, index=chat_list.index(st.session_state.current_chat) if st.session_state.current_chat in chat_list else 0)
     st.session_state.current_chat = selected_chat
 
     st.write("---")
@@ -90,7 +100,7 @@ with st.sidebar:
 
 # 5. Màn hình chính
 st.title("✨ Trợ Lý Web AI Trực Tuyến")
-st.caption(f"Phiên làm việc: **{st.session_state.current_chat}** | Đã kết nối Supabase Database 🗄️")
+st.caption(f"Phiên làm việc: **{st.session_state.current_chat}** | Trạng thái DB: **{mo_hinh_ai.db_status}**")
 
 # Hiển thị lịch sử tin nhắn
 active_chat_data = st.session_state.chats[st.session_state.current_chat]
