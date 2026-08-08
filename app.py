@@ -16,10 +16,11 @@ def tai_mo_hinh_ai():
     return AIEngine()
 
 mo_hinh_ai = tai_mo_hinh_ai()
+db_status = getattr(mo_hinh_ai, "db_status", "CHƯA_KẾT_NỐI")
 
 # 3. Load Lịch sử từ Supabase Database khi khởi chạy ứng dụng
 if "chats" not in st.session_state or not st.session_state.chats:
-    db_chats = mo_hinh_ai.load_all_chats()
+    db_chats = mo_hinh_ai.load_all_chats() if hasattr(mo_hinh_ai, "load_all_chats") else {}
     if db_chats:
         st.session_state.chats = db_chats
         st.session_state.current_chat = list(db_chats.keys())[0]
@@ -36,7 +37,7 @@ if "chats" not in st.session_state or not st.session_state.chats:
             }
         }
         st.session_state.current_chat = default_title
-        if mo_hinh_ai.db_status == "ĐÃ_KẾT_NỐI":
+        if db_status == "ĐÃ_KẾT_NỐI" and hasattr(mo_hinh_ai, "save_chat_node"):
             mo_hinh_ai.save_chat_node(init_id, default_title)
             mo_hinh_ai.save_message(init_id, "assistant", init_msg, init_msg)
 
@@ -45,10 +46,10 @@ with st.sidebar:
     st.title("✨ Lịch Sử Trò Chuyện (DB)")
     
     # Báo trạng thái kết nối Database
-    if mo_hinh_ai.db_status == "ĐÃ_KẾT_NỐI":
+    if db_status == "ĐÃ_KẾT_NỐI":
         st.success("🟢 Đã kết nối Supabase (Lưu vĩnh viễn)")
     else:
-        st.error(f"🔴 Chưa lưu DB: {mo_hinh_ai.db_status}")
+        st.error(f"🔴 Chưa lưu DB: {db_status}")
         st.caption("Hãy kiểm tra lại SUPABASE_URL và SUPABASE_KEY trong mục Settings -> Secrets trên Streamlit Cloud!")
     
     st.write("---")
@@ -65,8 +66,9 @@ with st.sidebar:
         st.session_state.current_chat = new_title
         
         # Lưu vào Database
-        mo_hinh_ai.save_chat_node(new_id, new_title)
-        mo_hinh_ai.save_message(new_id, "assistant", init_msg, init_msg)
+        if hasattr(mo_hinh_ai, "save_chat_node"):
+            mo_hinh_ai.save_chat_node(new_id, new_title)
+            mo_hinh_ai.save_message(new_id, "assistant", init_msg, init_msg)
         st.rerun()
 
     chat_list = list(st.session_state.chats.keys())
@@ -82,12 +84,14 @@ with st.sidebar:
             if new_title_input.strip() and new_title_input != st.session_state.current_chat:
                 st.session_state.chats[new_title_input] = st.session_state.chats.pop(st.session_state.current_chat)
                 st.session_state.current_chat = new_title_input
-                mo_hinh_ai.update_chat_title(current_id, new_title_input)
+                if hasattr(mo_hinh_ai, "update_chat_title"):
+                    mo_hinh_ai.update_chat_title(current_id, new_title_input)
                 st.rerun()
                 
         if st.button("🗑️ Xóa đoạn chat này", use_container_width=True):
             if len(st.session_state.chats) > 1:
-                mo_hinh_ai.delete_chat(current_id)
+                if hasattr(mo_hinh_ai, "delete_chat"):
+                    mo_hinh_ai.delete_chat(current_id)
                 del st.session_state.chats[st.session_state.current_chat]
                 st.session_state.current_chat = list(st.session_state.chats.keys())[0]
                 st.rerun()
@@ -100,7 +104,7 @@ with st.sidebar:
 
 # 5. Màn hình chính
 st.title("✨ Trợ Lý Web AI Trực Tuyến")
-st.caption(f"Phiên làm việc: **{st.session_state.current_chat}** | Trạng thái DB: **{mo_hinh_ai.db_status}**")
+st.caption(f"Phiên làm việc: **{st.session_state.current_chat}** | Trạng thái DB: **{db_status}**")
 
 # Hiển thị lịch sử tin nhắn
 active_chat_data = st.session_state.chats[st.session_state.current_chat]
@@ -152,7 +156,8 @@ if user_input := st.chat_input("Nhập câu hỏi hoặc yêu cầu AI phân tí
     # Lưu RAM
     active_messages.append({"role": "user", "content": full_api_prompt, "display_content": display_prompt})
     # Lưu Database
-    mo_hinh_ai.save_message(active_id, "user", full_api_prompt, display_prompt)
+    if hasattr(mo_hinh_ai, "save_message"):
+        mo_hinh_ai.save_message(active_id, "user", full_api_prompt, display_prompt)
 
     clean_history_for_api = [{"role": m["role"], "content": m["content"]} for m in active_messages]
 
@@ -164,4 +169,5 @@ if user_input := st.chat_input("Nhập câu hỏi hoặc yêu cầu AI phân tí
     # Lưu RAM
     active_messages.append({"role": "assistant", "content": phan_hoi_ai, "display_content": phan_hoi_ai})
     # Lưu Database
-    mo_hinh_ai.save_message(active_id, "assistant", phan_hoi_ai, phan_hoi_ai)
+    if hasattr(mo_hinh_ai, "save_message"):
+        mo_hinh_ai.save_message(active_id, "assistant", phan_hoi_ai, phan_hoi_ai)
