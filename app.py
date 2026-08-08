@@ -1,11 +1,12 @@
 import streamlit as st
+import io
 from ai_engine import AIEngine
 
 # 1. Cấu hình trang Web Chat
 st.set_page_config(
-    page_title="Trợ Lý AI Trực Tuyến",
+    page_title="Trợ Lý Web AI Đa Năng",
     page_icon="🤖",
-    layout="centered"
+    layout="wide"
 )
 
 # 2. Khởi tạo Mô hình AI
@@ -15,48 +16,88 @@ def tai_mo_hinh_ai():
 
 mo_hinh_ai = tai_mo_hinh_ai()
 
-# 3. Khởi tạo Bộ nhớ Lịch sử Trò chuyện (Session State)
+# 3. Khởi tạo Lịch sử Chat
 if "messages" not in st.session_state:
     st.session_state.messages = [
-        {"role": "assistant", "content": "Xin chào! Tôi là Trợ lý AI. Tôi có thể giúp gì cho bạn hôm nay?"}
+        {"role": "assistant", "content": "Xin chào! Tôi là Trợ lý AI Đa năng. Bạn có thể trò chuyện hoặc đính kèm tệp **PDF, Word, Excel, Ảnh (PNG, JPG)** để tôi phân tích giúp nhé!"}
     ]
 
-# 4. Thanh Sidebar quản lý
+# 4. Thanh Sidebar Tải Tệp & Tùy chọn
 with st.sidebar:
-    st.title("⚙️ Tùy Chọn Chat")
-    st.write("🤖 **Model:** Groq Llama 3.3 70B")
-    st.write("🧠 **Trí nhớ:** Tự động ghi nhớ toàn bộ cuộc trò chuyện trong phiên làm việc.")
-    st.divider()
+    st.title("📁 Tải Tệp Tài Liệu / Ảnh")
+    st.caption("Hỗ trợ tệp: PDF, DOCX, XLSX, XLS, PNG, JPG, JPEG, TXT")
     
-    # Nút Xóa lịch sử để chat lại từ đầu
+    uploaded_file = st.file_uploader(
+        "Chọn tệp đính kèm gửi cho AI:",
+        type=["pdf", "docx", "xlsx", "xls", "png", "jpg", "jpeg", "txt"]
+    )
+    
+    st.divider()
+    st.title("⚙️ Tùy Chọn")
+    st.write("🤖 **Model Văn bản:** Groq Llama 3.3 70B")
+    st.write("👁️ **Model Hình ảnh:** Groq Llama 3.2 Vision 11B")
+    
     if st.button("🗑️ Xóa Lịch Sử Chat", use_container_width=True):
         st.session_state.messages = [
-            {"role": "assistant", "content": "Lịch sử trò chuyện đã được xóa. Chúng ta bắt đầu lại nhé!"}
+            {"role": "assistant", "content": "Lịch sử trò chuyện đã được làm mới. Hãy gửi câu hỏi hoặc tệp mới nhé!"}
         ]
         st.rerun()
 
-# 5. Tiêu đề ứng dụng Web Chat
-st.title("💬 Trợ Lý AI Thông Minh")
-st.caption("Hệ thống Web AI thuần túy - Có khả năng ghi nhớ ngữ cảnh cuộc trò chuyện")
+# 5. Tiêu đề ứng dụng
+st.title("💬 Trợ Lý AI Đa Năng & Đa Phương Tiện")
+st.caption("Hệ thống Web AI thuần túy - Phân tích tệp Văn bản, Bảng tính Excel & Nhận diện Hình ảnh")
 
-# 6. Hiển thị tất cả các tin nhắn cũ từ bộ nhớ
+# 6. Hiển thị Lịch sử Tin nhắn
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# 7. Ô nhập liệu tin nhắn mới từ người dùng
-if user_input := st.chat_input("Nhập câu hỏi hoặc trò chuyện với AI..."):
-    # Hiển thị ngay tin nhắn của người dùng lên màn hình
-    with st.chat_message("user"):
-        st.markdown(user_input)
+# 7. Xử lý khi Người dùng gửi câu hỏi hoặc tải tệp
+if user_input := st.chat_input("Nhập câu hỏi hoặc yêu cầu AI phân tích..."):
     
-    # Lưu tin nhắn của người dùng vào bộ nhớ
-    st.session_state.messages.append({"role": "user", "content": user_input})
+    # 7a. Nếu có tệp đính kèm từ Sidebar
+    file_content_prompt = ""
+    if uploaded_file is not None:
+        file_bytes = io.BytesIO(uploaded_file.getvalue())
+        file_name = uploaded_file.name
+        file_ext = file_name.split(".")[-1].lower()
+        
+        with st.spinner(f"Đang xử lý tệp {file_name}..."):
+            try:
+                if file_ext == "pdf":
+                    text_extracted = mo_hinh_ai.extract_pdf(file_bytes)
+                    file_content_prompt = f"\n\n[Nội dung từ tệp PDF '{file_name}']:\n{text_extracted}"
+                elif file_ext == "docx":
+                    text_extracted = mo_hinh_ai.extract_word(file_bytes)
+                    file_content_prompt = f"\n\n[Nội dung từ tệp Word '{file_name}']:\n{text_extracted}"
+                elif file_ext in ["xlsx", "xls"]:
+                    text_extracted = mo_hinh_ai.extract_excel(file_bytes)
+                    file_content_prompt = f"\n\n[Dữ liệu Bảng tính Excel '{file_name}']:\n{text_extracted}"
+                elif file_ext in ["png", "jpg", "jpeg"]:
+                    text_extracted = mo_hinh_ai.analyze_image(file_bytes)
+                    file_content_prompt = f"\n\n[Kết quả phân tích từ Hình Ảnh '{file_name}']:\n{text_extracted}"
+                elif file_ext == "txt":
+                    text_extracted = uploaded_file.getvalue().decode("utf-8")
+                    file_content_prompt = f"\n\n[Nội dung tệp TXT '{file_name}']:\n{text_extracted}"
+            except Exception as err:
+                st.error(f"Lỗi đọc tệp {file_name}: {err}")
 
-    # Gọi AI xử lý kèm theo toàn bộ bộ nhớ ngữ cảnh
+    # Gộp tin nhắn người dùng nhập + nội dung tệp (nếu có)
+    full_user_content = user_input + file_content_prompt
+    display_content = user_input
+    if uploaded_file:
+        display_content += f"\n\n📎 *Đã đính kèm tệp: `{uploaded_file.name}`*"
+
+    # Hiển thị tin nhắn người dùng lên màn hình chat
+    with st.chat_message("user"):
+        st.markdown(display_content)
+    
+    # Lưu vào bộ nhớ Session
+    st.session_state.messages.append({"role": "user", "content": full_user_content})
+
+    # Gọi AI trả lời
     with st.chat_message("assistant"):
-        with st.spinner("AI đang suy nghĩ..."):
-            # Lấy danh sách tin nhắn lịch sử (chỉ lấy role và content)
+        with st.spinner("AI đang phân tích và soạn câu trả lời..."):
             history_for_api = [
                 {"role": m["role"], "content": m["content"]} 
                 for m in st.session_state.messages
@@ -65,5 +106,5 @@ if user_input := st.chat_input("Nhập câu hỏi hoặc trò chuyện với AI.
             phan_hoi_ai = mo_hinh_ai.chat_with_memory(history_for_api)
             st.markdown(phan_hoi_ai)
 
-    # Lưu câu trả lời của AI vào bộ nhớ lịch sử
+    # Lưu câu trả lời AI vào bộ nhớ
     st.session_state.messages.append({"role": "assistant", "content": phan_hoi_ai})
