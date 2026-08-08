@@ -6,6 +6,7 @@ import re
 from collections import Counter
 from underthesea import classify, sentiment, ner, pos_tag
 from groq import Groq
+import streamlit as st
 
 # Ép hệ thống dùng chuẩn UTF-8
 if hasattr(sys.stdout, 'reconfigure'):
@@ -14,18 +15,20 @@ if hasattr(sys.stdout, 'reconfigure'):
 class AIEngine:
     def __init__(self):
         print("Khởi tạo hệ thống xử lý ngôn ngữ tự nhiên AI...")
-        # Lấy API Key từ Secrets của Streamlit Cloud hoặc Biến môi trường
-        self.api_key = os.getenv("GROQ_API_KEY", "")
         
-        # Nếu không thấy trong os.getenv, thử đọc trực tiếp từ st.secrets của Streamlit
-        if not self.api_key:
-            try:
-                import streamlit as st
-                if "GROQ_API_KEY" in st.secrets:
-                    self.api_key = st.secrets["GROQ_API_KEY"]
-            except Exception:
-                pass
+        # 1. Thử lấy Key từ Streamlit Secrets trước
+        self.api_key = ""
+        try:
+            if "GROQ_API_KEY" in st.secrets:
+                self.api_key = st.secrets["GROQ_API_KEY"]
+        except Exception:
+            pass
 
+        # 2. Nếu không có trong st.secrets thì lấy từ biến môi trường os.getenv
+        if not self.api_key:
+            self.api_key = os.getenv("GROQ_API_KEY", "")
+
+        # Khởi tạo client Groq
         if self.api_key:
             self.client = Groq(api_key=self.api_key)
         else:
