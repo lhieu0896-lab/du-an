@@ -18,7 +18,7 @@ if hasattr(sys.stdout, 'reconfigure'):
 
 class DongCoAI:
     def __init__(self):
-        # Lấy danh sách API Keys từ secrets hoặc môi trường
+        # Lấy danh sách API Keys từ secrets 
         self.danh_sach_keys = []
         try:
             if "GROQ_API_KEYS" in st.secrets:
@@ -235,8 +235,9 @@ class DongCoAI:
             except Exception as e:
                 print(f"Lỗi cập nhật tiêu đề: {e}")
 
-    # --- ĐỌC CÁC TỆP ĐÍNH KÈM ---
+    # --- ĐỌC CÁC TỆP ĐÍNH KÈM (PDF, WORD, EXCEL, HÌNH ẢNH) ---
     def doc_file_pdf(self, luong_bytes_file):
+        """Bóc tách chữ viết từ file PDF"""
         try:
             doc_pdf = PdfReader(luong_bytes_file)
             cac_trang_van_ban = []
@@ -250,6 +251,7 @@ class DongCoAI:
             return f"Lỗi đọc file PDF: {str(e)}"
 
     def doc_file_word(self, luong_bytes_file):
+        """Đọc văn bản từ file Microsoft Word (.docx)"""
         try:
             doc_word = docx.Document(luong_bytes_file)
             return "\n".join([doan.text for doan in doc_word.paragraphs if doan.text.strip()])
@@ -257,6 +259,7 @@ class DongCoAI:
             return f"Lỗi đọc file Word: {str(e)}"
 
     def doc_file_excel(self, luong_bytes_file):
+        """Đọc bảng dữ liệu từ file Excel (.xlsx, .xls) và đổi thành Markdown"""
         try:
             bang_excel = pd.read_excel(luong_bytes_file, sheet_name=None)
             van_ban_trich_xuat = []
@@ -268,6 +271,7 @@ class DongCoAI:
             return f"Lỗi đọc file Excel: {str(e)}"
 
     def phan_tich_hinh_anh(self, luong_bytes_file, yeu_cau="Đọc và trích xuất toàn bộ chữ viết có trong hình này."):
+        """Sử dụng mô hình Llama Vision AI để đọc nội dung chữ từ Hình ảnh (OCR)"""
         if not self.danh_sach_keys:
             return "Chưa cấu hình API Key."
         
