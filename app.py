@@ -1,270 +1,273 @@
 import streamlit as st
 import io
 import uuid
-from ai_engine import AIEngine
+from ai_engine import DongCoAI
 
-# 1. Cấu hình Trang Web
+# Cấu hình trang web
 st.set_page_config(
     page_title="NEXUS AI - Trợ Lý Thông Minh",
     page_icon="🧠",
     layout="wide"
 )
 
-# 2. Khởi tạo Engine (Không dùng cache để đảm bảo nhận code mới dứt điểm)
-mo_hinh_ai = AIEngine()
-db_status = getattr(mo_hinh_ai, "db_status", "CHƯA_KẾT_NỐI")
+# Khởi tạo động cơ AI
+mo_hinh_ai = DongCoAI()
+trang_thai_db = getattr(mo_hinh_ai, "trang_thai_db", "CHƯA_KẾT_NỐI")
 
-# Khởi tạo phiên đăng nhập người dùng
-if "user" not in st.session_state:
-    st.session_state.user = None
+# Khởi tạo bộ nhớ phiên làm việc
+if "nguoi_dung" not in st.session_state:
+    st.session_state.nguoi_dung = None
 
 # =====================================================================
-# GIAO DIỆN ĐĂNG KIỂM / ĐĂNG NHẬP BẢO MẬT
+# MÀN HÌNH ĐĂNG NHẬP / ĐĂNG KÝ
 # =====================================================================
-if st.session_state.user is None:
+if st.session_state.nguoi_dung is None:
     st.title("🧠 NEXUS AI - Hệ Thống Trí Tuệ Nhóm")
-    st.caption("Vui lòng Đăng nhập hoặc Đăng ký tài khoản để bảo mật dữ liệu chat của bạn.")
+    st.caption("Đăng nhập hoặc đăng ký tài khoản để bảo mật lịch sử chat.")
     st.write("---")
 
-    tab_login, tab_register = st.tabs(["🔒 Đăng Nhập", "📝 Đăng ký Tài Khoản Mới"])
+    the_dang_nhap, the_dang_ky = st.tabs(["🔒 Đăng Nhập", "📝 Đăng ký Tài Khoản Mới"])
 
-    # TAB ĐĂNG NHẬP
-    with tab_login:
+    # Tab Đăng nhập
+    with the_dang_nhap:
         st.subheader("Đăng nhập tài khoản")
-        login_username = st.text_input("Tên tài khoản (Username):", key="login_user")
-        login_password = st.text_input("Mật khẩu:", type="password", key="login_pass")
+        ten_dang_nhap_nhap = st.text_input("Tên tài khoản:", key="login_user")
+        mat_khau_nhap = st.text_input("Mật khẩu:", type="password", key="login_pass")
         
         if st.button("🚀 Đăng Nhập", type="primary", use_container_width=True):
-            if login_username and login_password:
-                user_info, msg = mo_hinh_ai.authenticate_user(login_username, login_password)
-                if user_info:
-                    st.session_state.user = user_info
-                    st.success(f"Xin chào {user_info['full_name']}! Đang tải dữ liệu...")
+            if ten_dang_nhap_nhap and mat_khau_nhap:
+                thong_tin_user, thong_bao = mo_hinh_ai.xac_thuc_dang_nhap(ten_dang_nhap_nhap, mat_khau_nhap)
+                if thong_tin_user:
+                    st.session_state.nguoi_dung = thong_tin_user
+                    st.success(f"Xin chào {thong_tin_user['full_name']}!")
                     st.rerun()
                 else:
-                    st.error(msg)
+                    st.error(thong_bao)
             else:
                 st.warning("Vui lòng nhập đầy đủ Tên tài khoản và Mật khẩu!")
 
-    # TAB ĐĂNG KÝ
-    with tab_register:
+    # Tab Đăng ký
+    with the_dang_ky:
         st.subheader("Tạo tài khoản mới")
-        reg_fullname = st.text_input("Họ và Tên đầy đủ:", key="reg_name")
-        reg_username = st.text_input("Tên tài khoản (Viết liền không dấu):", key="reg_user")
-        reg_password = st.text_input("Mật khẩu:", type="password", key="reg_pass")
-        reg_confirm = st.text_input("Xác nhận Mật khẩu:", type="password", key="reg_confirm")
+        ho_ten_dk = st.text_input("Họ và Tên đầy đủ:", key="reg_name")
+        ten_dang_nhap_dk = st.text_input("Tên tài khoản (viết liền):", key="reg_user")
+        mat_khau_dk = st.text_input("Mật khẩu:", type="password", key="reg_pass")
+        xac_nhan_mat_khau_dk = st.text_input("Xác nhận Mật khẩu:", type="password", key="reg_confirm")
 
         if st.button("✨ Tạo Tài Khoản", use_container_width=True):
-            if not reg_fullname or not reg_username or not reg_password:
-                st.warning("Vui lòng điền đầy đủ các thông tin!")
-            elif reg_password != reg_confirm:
+            if not ho_ten_dk or not ten_dang_nhap_dk or not mat_khau_dk:
+                st.warning("Vui lòng điền đầy đủ thông tin!")
+            elif mat_khau_dk != xac_nhan_mat_khau_dk:
                 st.error("Mật khẩu xác nhận không khớp!")
             else:
-                success, msg = mo_hinh_ai.register_user(reg_fullname, reg_username, reg_password)
-                if success:
-                    st.success(msg + " Hãy chuyển sang tab 'Đăng Nhập' để bắt đầu.")
+                thanh_cong, thong_bao = mo_hinh_ai.dang_ky_tai_khoan(ho_ten_dk, ten_dang_nhap_dk, mat_khau_dk)
+                if thanh_cong:
+                    st.success(thong_bao + " Hãy chuyển sang tab Đăng Nhập để bắt đầu.")
                 else:
-                    st.error(msg)
+                    st.error(thong_bao)
 
     st.stop()
 
 # =====================================================================
-# GIAO DIỆN CHÁT BẢO MẬT (ĐÃ XÁC THỰC TÀI KHOẢN SUCCESS)
+# GIAO DIỆN CHÁT CHÍNH (ĐÃ ĐĂNG NHẬP)
 # =====================================================================
-current_user_id = st.session_state.user["id"]
-current_user_name = st.session_state.user["full_name"]
+id_user_hien_tai = st.session_state.nguoi_dung["id"]
+ten_user_hien_tai = st.session_state.nguoi_dung["full_name"]
 
-# Tải Lịch sử chat cá nhân độc lập
-if "chats" not in st.session_state or getattr(st.session_state, "loaded_user_id", None) != current_user_id:
-    db_chats = mo_hinh_ai.load_user_chats(current_user_id)
-    st.session_state.loaded_user_id = current_user_id
+# Tải lịch sử chat cá nhân từ DB
+if "danh_sach_chat" not in st.session_state or getattr(st.session_state, "id_user_da_nap", None) != id_user_hien_tai:
+    chats_tu_db = mo_hinh_ai.tai_danh_sach_chat_nguoi_dung(id_user_hien_tai)
+    st.session_state.id_user_da_nap = id_user_hien_tai
     
-    if db_chats:
-        st.session_state.chats = db_chats
-        st.session_state.current_chat = list(db_chats.keys())[0]
+    if chats_tu_db:
+        st.session_state.danh_sach_chat = chats_tu_db
+        st.session_state.chat_hien_tai = list(chats_tu_db.keys())[0]
     else:
-        init_id = str(uuid.uuid4())
-        default_title = "Cuộc trò chuyện mới"
-        init_msg = f"Xin chào **{current_user_name}**! Lịch sử chat của bạn đã được mã hóa bảo mật riêng biệt trên Database. Không ai khác có thể xem được nội dung này."
-        st.session_state.chats = {
-            default_title: {
-                "id": init_id,
+        id_khoi_tao = str(uuid.uuid4())
+        tieu_de_mac_dinh = "Cuộc trò chuyện mới"
+        tin_nhan_khoi_tao = f"Xin chào **{ten_user_hien_tai}**! Lịch sử chat của bạn được lưu riêng biệt bảo mật trên Database."
+        st.session_state.danh_sach_chat = {
+            tieu_de_mac_dinh: {
+                "id": id_khoi_tao,
                 "messages": [
-                    {"role": "assistant", "content": init_msg, "display_content": init_msg}
+                    {"role": "assistant", "content": tin_nhan_khoi_tao, "display_content": tin_nhan_khoi_tao}
                 ]
             }
         }
-        st.session_state.current_chat = default_title
-        if db_status == "ĐÃ_KẾT_NỐI":
-            mo_hinh_ai.save_chat_node(init_id, default_title, current_user_id)
-            mo_hinh_ai.save_message(init_id, "assistant", init_msg, init_msg)
+        st.session_state.chat_hien_tai = tieu_de_mac_dinh
+        if trang_thai_db == "ĐÃ_KẾT_NỐI":
+            mo_hinh_ai.luu_phien_chat(id_khoi_tao, tieu_de_mac_dinh, id_user_hien_tai)
+            mo_hinh_ai.luu_tin_nhan(id_khoi_tao, "assistant", tin_nhan_khoi_tao, tin_nhan_khoi_tao)
 
-# 4. Thanh Sidebar
+# Sidebar công cụ
 with st.sidebar:
     st.title("🧠 NEXUS AI")
-    st.caption(f"👤 Tài khoản: **{current_user_name}**")
+    st.caption(f"👤 Tài khoản: **{ten_user_hien_tai}**")
     
     if st.button("🚪 Đăng xuất", use_container_width=True):
-        st.session_state.user = None
-        st.session_state.chats = {}
+        st.session_state.nguoi_dung = None
+        st.session_state.danh_sach_chat = {}
         st.rerun()
         
     st.write("---")
-    enable_web_search = st.toggle("🌐 Bật Tra Cứu Web Real-time", value=True)
+    bat_tim_web = st.toggle("🌐 Tra Cứu Web Real-time", value=True)
     st.write("---")
     
+    # Tạo phiên chat mới
     if st.button("➕ Tạo phiên chat mới", use_container_width=True, type="primary"):
-        new_id = str(uuid.uuid4())
-        new_title = f"Cuộc trò chuyện {len(st.session_state.chats) + 1}"
-        init_msg = "Phiên trò chuyện cá nhân mới đã được khởi tạo thành công!"
+        id_moi = str(uuid.uuid4())
+        tieu_de_moi = f"Cuộc trò chuyện {len(st.session_state.danh_sach_chat) + 1}"
+        tin_nhan_khoi_tao = "Phiên trò chuyện cá nhân mới đã được khởi tạo!"
         
-        st.session_state.chats[new_title] = {
-            "id": new_id,
-            "messages": [{"role": "assistant", "content": init_msg, "display_content": init_msg}]
+        st.session_state.danh_sach_chat[tieu_de_moi] = {
+            "id": id_moi,
+            "messages": [{"role": "assistant", "content": tin_nhan_khoi_tao, "display_content": tin_nhan_khoi_tao}]
         }
-        st.session_state.current_chat = new_title
+        st.session_state.chat_hien_tai = tieu_de_moi
         
-        mo_hinh_ai.save_chat_node(new_id, new_title, current_user_id)
-        mo_hinh_ai.save_message(new_id, "assistant", init_msg, init_msg)
+        mo_hinh_ai.luu_phien_chat(id_moi, tieu_de_moi, id_user_hien_tai)
+        mo_hinh_ai.luu_tin_nhan(id_moi, "assistant", tin_nhan_khoi_tao, tin_nhan_khoi_tao)
         st.rerun()
 
-    chat_list = list(st.session_state.chats.keys())
-    if st.session_state.current_chat not in chat_list and chat_list:
-        st.session_state.current_chat = chat_list[0]
+    # Danh sách chat
+    danh_sach_tieu_de_chat = list(st.session_state.danh_sach_chat.keys())
+    if st.session_state.chat_hien_tai not in danh_sach_tieu_de_chat and danh_sach_tieu_de_chat:
+        st.session_state.chat_hien_tai = danh_sach_tieu_de_chat[0]
         
-    selected_chat = st.radio(
+    chat_duoc_chon = st.radio(
         "Lịch sử chat cá nhân:", 
-        chat_list, 
-        index=chat_list.index(st.session_state.current_chat) if st.session_state.current_chat in chat_list else 0
+        danh_sach_tieu_de_chat, 
+        index=danh_sach_tieu_de_chat.index(st.session_state.chat_hien_tai) if st.session_state.chat_hien_tai in danh_sach_tieu_de_chat else 0
     )
     
-    if selected_chat != st.session_state.current_chat:
-        st.session_state.current_chat = selected_chat
+    if chat_duoc_chon != st.session_state.chat_hien_tai:
+        st.session_state.chat_hien_tai = chat_duoc_chon
         st.rerun()
 
     st.write("---")
     with st.expander("⚙️ Quản lý & Tải Chat"):
-        new_title_input = st.text_input("Đổi tên đoạn chat:", value=st.session_state.current_chat)
-        current_id = st.session_state.chats[st.session_state.current_chat]["id"]
+        tieu_de_moi_nhap = st.text_input("Đổi tên đoạn chat:", value=st.session_state.chat_hien_tai)
+        id_chat_hien_tai = st.session_state.danh_sach_chat[st.session_state.chat_hien_tai]["id"]
         
         if st.button("💾 Lưu tên mới", use_container_width=True):
-            if new_title_input.strip() and new_title_input != st.session_state.current_chat:
-                st.session_state.chats[new_title_input] = st.session_state.chats.pop(st.session_state.current_chat)
-                st.session_state.current_chat = new_title_input
-                mo_hinh_ai.update_chat_title(current_id, new_title_input)
+            if tieu_de_moi_nhap.strip() and tieu_de_moi_nhap != st.session_state.chat_hien_tai:
+                st.session_state.danh_sach_chat[tieu_de_moi_nhap] = st.session_state.danh_sach_chat.pop(st.session_state.chat_hien_tai)
+                st.session_state.chat_hien_tai = tieu_de_moi_nhap
+                mo_hinh_ai.cap_nhat_tieu_de_chat(id_chat_hien_tai, tieu_de_moi_nhap)
                 st.rerun()
 
-        # Nút Xuất File Word
-        word_stream = mo_hinh_ai.export_chat_to_word(
-            st.session_state.chats[st.session_state.current_chat]["messages"],
-            st.session_state.current_chat
+        # Tải file Word
+        luong_word = mo_hinh_ai.xuat_chat_ra_file_word(
+            st.session_state.danh_sach_chat[st.session_state.chat_hien_tai]["messages"],
+            st.session_state.chat_hien_tai
         )
         st.download_button(
             label="📄 Tải Chat về File Word (.docx)",
-            data=word_stream,
-            file_name=f"{st.session_state.current_chat}.docx",
+            data=luong_word,
+            file_name=f"{st.session_state.chat_hien_tai}.docx",
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             use_container_width=True
         )
                 
         if st.button("🗑️ Xóa phiên chat này", use_container_width=True):
-            if len(st.session_state.chats) > 1:
-                mo_hinh_ai.delete_chat(current_id)
-                del st.session_state.chats[st.session_state.current_chat]
-                st.session_state.current_chat = list(st.session_state.chats.keys())[0]
+            if len(st.session_state.danh_sach_chat) > 1:
+                mo_hinh_ai.xoa_phien_chat(id_chat_hien_tai)
+                del st.session_state.danh_sach_chat[st.session_state.chat_hien_tai]
+                st.session_state.chat_hien_tai = list(st.session_state.danh_sach_chat.keys())[0]
                 st.rerun()
 
     st.divider()
     st.title("📁 Đính Kèm Tệp")
-    uploaded_file = st.file_uploader("Tải tệp PDF, DOCX, XLSX, Ảnh:", type=["pdf", "docx", "xlsx", "xls", "png", "jpg", "jpeg", "txt"])
+    tep_tai_len = st.file_uploader("Tải tệp PDF, DOCX, XLSX, Ảnh:", type=["pdf", "docx", "xlsx", "xls", "png", "jpg", "jpeg", "txt"])
     
     st.write("---")
     st.caption("⚡ **Developed by Hiếu & Team**")
 
-# 5. Màn hình chính
+# Màn hình chat chính
 st.title("🧠 NEXUS AI - Trợ Lý Trí Tuệ")
-st.caption(f"Phiên làm việc: **{st.session_state.current_chat}** | Người dùng: **{current_user_name}**")
+st.caption(f"Phiên làm việc: **{st.session_state.chat_hien_tai}** | Người dùng: **{ten_user_hien_tai}**")
 
-# Hiển thị lịch sử tin nhắn
-active_chat_data = st.session_state.chats[st.session_state.current_chat]
-active_messages = active_chat_data["messages"]
-active_id = active_chat_data["id"]
+du_lieu_chat_dang_mo = st.session_state.danh_sach_chat[st.session_state.chat_hien_tai]
+tin_nhan_dang_mo = du_lieu_chat_dang_mo["messages"]
+id_chat_dang_mo = du_lieu_chat_dang_mo["id"]
 
-for message in active_messages:
-    with st.chat_message(message["role"]):
-        display_text = message.get("display_content", message["content"])
-        st.markdown(display_text)
+# Render lại lịch sử nhắn tin
+for tin_nhan in tin_nhan_dang_mo:
+    with st.chat_message(tin_nhan["role"]):
+        van_ban_hien_thi = tin_nhan.get("display_content", tin_nhan["content"])
+        st.markdown(van_ban_hien_thi)
 
-# 6. Xử lý nhắn tin
-if user_input := st.chat_input("Nhập câu hỏi hoặc gửi tệp đính kèm..."):
-    extracted_text_from_file = ""
-    display_file_note = ""
+# Nhập tin nhắn
+if cau_hoi_nguoi_dung := st.chat_input("Nhập câu hỏi hoặc gửi tệp đính kèm..."):
+    van_ban_trich_xuat_tu_tep = ""
+    ghi_chu_tep = ""
 
-    if uploaded_file is not None:
-        file_bytes = io.BytesIO(uploaded_file.getvalue())
-        file_name = uploaded_file.name
-        file_ext = file_name.split(".")[-1].lower()
+    # Xử lý tệp tải lên
+    if tep_tai_len is not None:
+        luong_bytes_tep = io.BytesIO(tep_tai_len.getvalue())
+        ten_tep = tep_tai_len.name
+        duoi_tep = ten_tep.split(".")[-1].lower()
         
-        with st.spinner(f"Đang phân tích tệp '{file_name}'..."):
-            raw_text = ""
-            if file_ext == "pdf":
-                raw_text = mo_hinh_ai.extract_pdf(file_bytes)
-                if raw_text == "PDF_IS_SCANNED_IMAGE":
-                    raw_text = f"[Tài liệu '{file_name}']: File PDF ảnh quét."
-            elif file_ext == "docx":
-                raw_text = mo_hinh_ai.extract_word(file_bytes)
-            elif file_ext in ["xlsx", "xls"]:
-                raw_text = mo_hinh_ai.extract_excel(file_bytes)
-            elif file_ext in ["png", "jpg", "jpeg"]:
-                raw_text = mo_hinh_ai.analyze_image(file_bytes)
-            elif file_ext == "txt":
-                raw_text = uploaded_file.getvalue().decode("utf-8")
+        with st.spinner(f"Đang phân tích tệp '{ten_tep}'..."):
+            van_ban_tho = ""
+            if duoi_tep == "pdf":
+                van_ban_tho = mo_hinh_ai.doc_file_pdf(luong_bytes_tep)
+                if van_ban_tho == "PDF_IS_SCANNED_IMAGE":
+                    van_ban_tho = f"[Tài liệu '{ten_tep}']: File PDF ảnh quét."
+            elif duoi_tep == "docx":
+                van_ban_tho = mo_hinh_ai.doc_file_word(luong_bytes_tep)
+            elif duoi_tep in ["xlsx", "xls"]:
+                van_ban_tho = mo_hinh_ai.doc_file_excel(luong_bytes_tep)
+            elif duoi_tep in ["png", "jpg", "jpeg"]:
+                van_ban_tho = mo_hinh_ai.phan_tich_hinh_anh(luong_bytes_tep)
+            elif duoi_tep == "txt":
+                van_ban_tho = tep_tai_len.getvalue().decode("utf-8")
         
-            if raw_text and raw_text != "PDF_IS_SCANNED_IMAGE":
-                extracted_text_from_file = mo_hinh_ai.retrieve_relevant_chunks(raw_text, user_input)
+            if van_ban_tho and van_ban_tho != "PDF_IS_SCANNED_IMAGE":
+                van_ban_trich_xuat_tu_tep = mo_hinh_ai.trich_xuat_doan_lien_quan(van_ban_tho, cau_hoi_nguoi_dung)
             else:
-                extracted_text_from_file = raw_text
+                van_ban_trich_xuat_tu_tep = van_ban_tho
 
-        display_file_note = f"\n\n📎 *Tệp đính kèm: `{file_name}`*"
+        ghi_chu_tep = f"\n\n📎 *Tệp đính kèm: `{ten_tep}`*"
 
-    # Tra cứu Web Real-time
-    web_search_context = ""
-    if enable_web_search:
+    # Tìm kiếm Web
+    ngu_canh_web = ""
+    if bat_tim_web:
         with st.spinner(f"🌐 Đang tra cứu Web real-time..."):
-            web_search_context = mo_hinh_ai.search_web(user_input)
+            ngu_canh_web = mo_hinh_ai.tim_kiem_web(cau_hoi_nguoi_dung)
 
-    if extracted_text_from_file:
-        full_api_prompt = f"Dưới đây là nội dung đính kèm từ tệp '{uploaded_file.name}':\n\n{extracted_text_from_file}\n\n---\nYêu cầu: {user_input}"
+    if van_ban_trich_xuat_tu_tep:
+        noi_dung_gui_api = f"Dưới đây là nội dung đính kèm từ tệp '{tep_tai_len.name}':\n\n{van_ban_trich_xuat_tu_tep}\n\n---\nYêu cầu: {cau_hoi_nguoi_dung}"
     else:
-        full_api_prompt = user_input
+        noi_dung_gui_api = cau_hoi_nguoi_dung
 
-    display_prompt = user_input + display_file_note
-    if enable_web_search and web_search_context and web_search_context != "CHƯA_CÓ_KẾT_QUẢ":
-        display_prompt += "\n\n🌐 *[Đã tự động tổng hợp dữ liệu Web real-time]*"
+    noi_dung_hien_thi = cau_hoi_nguoi_dung + ghi_chu_tep
+    if bat_tim_web and ngu_canh_web and ngu_canh_web != "CHƯA_CÓ_KẾT_QUẢ":
+        noi_dung_hien_thi += "\n\n🌐 *[Đã tự động tổng hợp dữ liệu Web real-time]*"
 
     with st.chat_message("user"):
-        st.markdown(display_prompt)
+        st.markdown(noi_dung_hien_thi)
 
-    # Lưu RAM & DB
-    active_messages.append({"role": "user", "content": full_api_prompt, "display_content": display_prompt})
-    mo_hinh_ai.save_message(active_id, "user", full_api_prompt, display_prompt)
+    # Lưu tin nhắn người dùng
+    tin_nhan_dang_mo.append({"role": "user", "content": noi_dung_gui_api, "display_content": noi_dung_hien_thi})
+    mo_hinh_ai.luu_tin_nhan(id_chat_dang_mo, "user", noi_dung_gui_api, noi_dung_hien_thi)
 
-    # Đặt tên tự động nếu là câu hỏi đầu tiên
-    user_msg_count = sum(1 for m in active_messages if m["role"] == "user")
-    if user_msg_count == 1 and ("Cuộc trò chuyện" in st.session_state.current_chat or "Cuộc trò chuyện mới" in st.session_state.current_chat):
-        new_auto_title = mo_hinh_ai.generate_chat_title(user_input)
-        if new_auto_title and new_auto_title != st.session_state.current_chat:
-            st.session_state.chats[new_auto_title] = st.session_state.chats.pop(st.session_state.current_chat)
-            st.session_state.current_chat = new_auto_title
-            mo_hinh_ai.update_chat_title(active_id, new_auto_title)
+    # Đặt tên tự động nếu là tin nhắn đầu tiên
+    so_tin_nhan_user = sum(1 for m in tin_nhan_dang_mo if m["role"] == "user")
+    if so_tin_nhan_user == 1 and ("Cuộc trò chuyện" in st.session_state.chat_hien_tai or "Cuộc trò chuyện mới" in st.session_state.chat_hien_tai):
+        tieu_de_tu_dong = mo_hinh_ai.tao_tieu_de_chat(cau_hoi_nguoi_dung)
+        if tieu_de_tu_dong and tieu_de_tu_dong != st.session_state.chat_hien_tai:
+            st.session_state.danh_sach_chat[tieu_de_tu_dong] = st.session_state.danh_sach_chat.pop(st.session_state.chat_hien_tai)
+            st.session_state.chat_hien_tai = tieu_de_tu_dong
+            mo_hinh_ai.cap_nhat_tieu_de_chat(id_chat_dang_mo, tieu_de_tu_dong)
 
-    clean_history_for_api = [{"role": m["role"], "content": m["content"]} for m in active_messages]
+    lich_su_sach_gui_api = [{"role": m["role"], "content": m["content"]} for m in tin_nhan_dang_mo]
 
-    # Hiệu ứng gõ chữ thời gian thực
+    # Render câu trả lời của AI dạng streaming
     with st.chat_message("assistant"):
-        stream_generator = mo_hinh_ai.chat_stream(clean_history_for_api, web_search_context=web_search_context)
-        phan_hoi_ai = st.write_stream(stream_generator)
+        luong_phan_hoi = mo_hinh_ai.luong_phan_hoi_chat(lich_su_sach_gui_api, ngu_canh_web=ngu_canh_web)
+        phan_hoi_ai = st.write_stream(luong_phan_hoi)
 
-    # Lưu RAM & DB
-    active_messages.append({"role": "assistant", "content": phan_hoi_ai, "display_content": phan_hoi_ai})
-    mo_hinh_ai.save_message(active_id, "assistant", phan_hoi_ai, phan_hoi_ai)
+    # Lưu tin nhắn của AI
+    tin_nhan_dang_mo.append({"role": "assistant", "content": phan_hoi_ai, "display_content": phan_hoi_ai})
+    mo_hinh_ai.luu_tin_nhan(id_chat_dang_mo, "assistant", phan_hoi_ai, phan_hoi_ai)
