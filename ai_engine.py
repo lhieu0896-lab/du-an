@@ -169,7 +169,7 @@ class AIEngine:
             "entities": thuc_the_dinh_dang
         }
 
-    # 4. TRỢ LÝ TRA CỨU HỌC TẬP
+    # 4. TRỢ LÝ TRA CỨU HỌC TẬP (ĐÃ SIẾT PROMPT CHỐNG BỊA ĐẶT VĂN HỌC)
     def process_learning_assistant(self, van_ban="", cau_hoi=""):
         thoi_gian_bat_dau = time.time()
         nguon_du_lieu = "Mô hình Trí tuệ Nhân tạo Groq Llama 3.3 70B"
@@ -184,9 +184,12 @@ class AIEngine:
                 raise Exception("Chưa tìm thấy GROQ_API_KEY trong cấu hình Secrets")
 
             prompt_system = (
-                "Bạn là một trợ lý giáo dục chuyên nghiệp, thông minh và chính xác. "
-                "Nhiệm vụ của bạn là giải thích ngắn gọn, rõ ràng, chính xác theo góc độ học thuật các câu hỏi hoặc bài học của người dùng. "
-                "Nếu người dùng cung cấp thêm văn bản bài học, hãy ưu tiên dựa trên nội dung đó để trả lời."
+                "Bạn là một trợ lý giáo dục chuyên nghiệp và chính xác tuyệt đối. "
+                "Nhiệm vụ của bạn là giải thích chính xác các kiến thức lịch sử, văn học, khoa học. "
+                "Tuyệt đối KHÔNG ĐƯỢC BỊA ĐẶT thông tin. "
+                "Nếu câu hỏi liên quan đến tác phẩm văn học hoặc nhân vật lịch sử, "
+                "hãy bắt buộc xác nhận đúng tác giả, tên tác phẩm, thể loại và nội dung cốt lõi thực tế trước khi trả lời. "
+                "Nếu không chắc chắn về dữ kiện, hãy báo chưa đủ thông tin thay vì đoán ngẫu nhiên."
             )
             
             user_content = ""
@@ -203,7 +206,7 @@ class AIEngine:
                     {"role": "user", "content": user_content}
                 ],
                 model=self.model_name,
-                temperature=0.3
+                temperature=0.1
             )
             tra_loi_cau_hoi = response.choices[0].message.content.strip()
 
