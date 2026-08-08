@@ -69,7 +69,7 @@ class AIEngine:
             print(f"Lỗi tìm kiếm web: {e}")
             return f"Lỗi truy cập kết quả tìm kiếm Web: {str(e)}"
 
-    # --- TỰ ĐỘNG ĐẶT TÊN DỰA TRÊN CÂU HỎI ---
+    # --- TỰ ĐỘNG ĐẶT TÊN CÂU HỎI ---
     def generate_chat_title(self, first_user_message):
         if not self.client:
             return "Cuộc trò chuyện mới"
@@ -89,7 +89,7 @@ class AIEngine:
         except Exception:
             return "Cuộc trò chuyện mới"
 
-    # --- TRÍCH XUẤT ĐOẠN TÀI LIỆU DÀI ---
+    # --- TRÍCH XUẤT TÀI LIỆU DÀI ---
     def retrieve_relevant_chunks(self, full_text, query, chunk_size=1500, top_k=3):
         if len(full_text) <= chunk_size * 2:
             return full_text
@@ -106,11 +106,11 @@ class AIEngine:
         selected_chunks = [item[1] for item in scored_chunks[:top_k]]
         return "\n\n...[Đoạn trích xuất từ tài liệu]...\n\n".join(selected_chunks)
 
-    # --- TÍNH NĂNG TẠO FILE WORD ĐỂ TẢI CHAT VỀ MÁY ---
+    # --- TẠO FILE WORD ĐỂ TẢI CHAT VỀ MÁY ---
     def export_chat_to_word(self, messages, chat_title):
         doc = docx.Document()
         doc.add_heading(f"BÁO CÁO TRÒ CHUYỆN: {chat_title}", level=1)
-        doc.add_paragraph("Được trích xuất từ Hệ thống Web AI Trí Tuệ\n-----------------------------------")
+        doc.add_paragraph("Được trích xuất từ Hệ thống NEXUS AI\n-----------------------------------")
         
         for m in messages:
             role_name = "NGƯỜI DÙNG" if m["role"] == "user" else "TRỢ LÝ AI"
@@ -246,8 +246,8 @@ class AIEngine:
             return
         try:
             system_instruction_text = (
-                "Bạn là Trợ lý Trí Tuệ Nhân Tạo Chuyên Nghiệp của Nhóm. "
-                "Trả lời thông minh, khoa học, logic, hỗ trợ tốt nhất về lập trình, giải toán, dịch thuật. "
+                "Bạn là Trợ lý AI giáo dục thông minh và hữu ích của Nhóm NEXUS. "
+                "Trả lời chính xác, khoa học, logic bằng tiếng Việt. "
                 "Sử dụng Markdown rõ ràng và LaTeX ($...$) cho công thức toán/hóa."
             )
             
