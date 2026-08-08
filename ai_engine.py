@@ -33,7 +33,7 @@ class AIEngine:
         self.text_model = "llama-3.3-70b-versatile"
         self.vision_model = "llama-3.2-11b-vision-preview"
 
-    # 1. Đọc sạch 100% file PDF (Dành cho sách giáo khoa / tài liệu dài)
+    # 1. Trích xuất sạch 100% file PDF (Dành cho Sách giáo khoa / Tài liệu)
     def extract_pdf(self, file_bytes):
         try:
             reader = PdfReader(file_bytes)
@@ -43,7 +43,7 @@ class AIEngine:
                 if txt and txt.strip():
                     text_pages.append(f"[Trang {i+1}]: {txt.strip()}")
             full_text = "\n".join(text_pages)
-            return full_text if full_text.strip() else "Không thể trích xuất được chữ từ PDF (Có thể file là dạng ảnh quét)."
+            return full_text if full_text.strip() else "Không thể trích xuất chữ từ PDF (Có thể là file ảnh quét)."
         except Exception as e:
             return f"Lỗi khi đọc file PDF: {str(e)}"
 
@@ -97,7 +97,7 @@ class AIEngine:
         except Exception as e:
             return f"Lỗi xử lý hình ảnh: {str(e)}"
 
-    # 5. Hàm Chat nhớ toàn bộ ngữ cảnh giống Gemini/ChatGPT
+    # 5. Hàm Chat chuẩn hóa Lịch sử tin nhắn trước khi gửi lên API
     def chat_with_memory(self, messages_history):
         if not self.client:
             return "Chưa tìm thấy API Key. Hãy điền GROQ_API_KEY vào mục Settings -> Secrets trên Streamlit Cloud."
@@ -112,10 +112,13 @@ class AIEngine:
                 )
             }
             
-            # Đảm bảo định dạng chuẩn gửi lên Groq API
+            # LỌC SẠCH: CHỈ GIỮ LẠI 'ROLE' VÀ 'CONTENT' ĐỂ GỬI CHO GROQ API
             api_messages = [system_instruction]
             for m in messages_history:
-                api_messages.append({"role": m["role"], "content": m["content"]})
+                api_messages.append({
+                    "role": m["role"],
+                    "content": m["content"]
+                })
 
             response = self.client.chat.completions.create(
                 messages=api_messages,
