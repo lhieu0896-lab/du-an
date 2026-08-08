@@ -2,6 +2,6 @@ streamlit
 pandas
 python-docx
 pypdf
-underthesea
 groq
-requests
+tabulate
+supabase
