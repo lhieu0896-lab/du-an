@@ -27,7 +27,7 @@ if "chats" not in st.session_state:
 if "current_chat" not in st.session_state:
     st.session_state.current_chat = "Cuộc trò chuyện 1"
 
-# 4. Thanh Sidebar Quản lý Lịch sử Chat giống hệt Gemini
+# 4. Thanh Sidebar Quản lý Lịch sử Chat giống Gemini
 with st.sidebar:
     st.title("💬 Lịch Sử Trò Chuyện")
     
@@ -59,7 +59,8 @@ st.caption(f"Phiên làm việc hiện tại: **{st.session_state.current_chat}*
 current_messages = st.session_state.chats[st.session_state.current_chat]
 for message in current_messages:
     with st.chat_message(message["role"]):
-        st.markdown(message["display_content"] if "display_content" in message else message["content"])
+        display_text = message.get("display_content", message["content"])
+        st.markdown(display_text)
 
 # 6. Xử lý khi Người dùng nhắn tin hoặc gửi file
 if user_input := st.chat_input("Nhập câu hỏi hoặc yêu cầu AI từ tệp..."):
