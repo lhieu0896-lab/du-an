@@ -8,8 +8,10 @@ import docx
 from pypdf import PdfReader
 from groq import Groq
 from supabase import create_client, Client
+from duckduckgo_search import DDGS
 import streamlit as st
 
+# Ép hệ thống dùng chuẩn UTF-8
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
 
@@ -31,7 +33,7 @@ class AIEngine:
         else:
             self.client = None
 
-        # 2. Khởi tạo Supabase Database Client
+        # 2. Khởi tạo Supabase Client
         self.supabase: Client = None
         self.db_status = "CHƯA_KẾT_NỐI"
         try:
@@ -47,9 +49,66 @@ class AIEngine:
         self.text_model = "llama-3.3-70b-versatile"
         self.vision_model = "llama-3.2-11b-vision-preview"
 
-    # --- CÁC HÀM XỬ LÝ DATABASE SUPABASE ---
+    # --- TÍNH NĂNG 1: TÌM KIẾM WEB THỜI GIAN THỰC (WEB SEARCH) ---
+    def search_web(self, query, max_results=4):
+        """Tìm kiếm thông tin cập nhật trên Web bằng DuckDuckGo"""
+        try:
+            results = []
+            with DDGS() as ddgs:
+                ddg_results = ddgs.text(query, max_results=max_results)
+                for r in ddg_results:
+                    results.append(f"📌 **{r.get('title')}**\nNguồn: {r.get('href')}\nNội dung: {r.get('body')}\n")
+            return "\n".join(results) if results else ""
+        except Exception as e:
+            print(f"Lỗi tìm kiếm web: {e}")
+            return ""
+
+    # --- TÍNH NĂNG 2: TỰ ĐỘNG ĐẶT TÊN CHO ĐOẠN CHAT (AUTO-TITLING) ---
+    def generate_chat_title(self, first_user_message):
+        """Tạo tên cuộc trò chuyện ngắn gọn dựa trên câu hỏi đầu tiên"""
+        if not self.client:
+            return "Cuộc trò chuyện mới"
+        try:
+            prompt = (
+                f"Hãy tạo một tiêu đề siêu ngắn gọn (từ 3 đến 6 từ) bằng tiếng Việt cho cuộc trò chuyện có câu hỏi đầu tiên là: '{first_user_message}'. "
+                "Chỉ trả về duy nhất chuỗi tiêu đề, không ghi thêm dấu ngoặc kép hay từ thừa."
+            )
+            response = self.client.chat.completions.create(
+                model=self.text_model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.3,
+                max_tokens=20
+            )
+            title = response.choices[0].message.content.strip().replace('"', '')
+            return title if title else "Cuộc trò chuyện mới"
+        except Exception:
+            return "Cuộc trò chuyện mới"
+
+    # --- TÍNH NĂNG 3: TRÍCH XUẤT TÀI LIỆU DÀI THÔNG MINH (LIGHT RAG CHUNKING) ---
+    def retrieve_relevant_chunks(self, full_text, query, chunk_size=1500, top_k=3):
+        """Cắt tài liệu dài thành nhiều đoạn và trích xuất các đoạn liên quan nhất đến câu hỏi"""
+        if len(full_text) <= chunk_size * 2:
+            return full_text  # Nếu file ngắn thì giữ nguyên
+
+        # Cắt văn bản thành các chunks
+        chunks = [full_text[i:i+chunk_size] for i in range(0, len(full_text), chunk_size - 200)]
+        
+        # Tìm các chunk chứa từ khóa của câu hỏi
+        query_words = set(query.lower().split())
+        scored_chunks = []
+        for chunk in chunks:
+            chunk_lower = chunk.lower()
+            score = sum(1 for word in query_words if len(word) > 2 and word in chunk_lower)
+            scored_chunks.append((score, chunk))
+        
+        # Sắp xếp lấy ra top_k chunk phù hợp nhất
+        scored_chunks.sort(key=lambda x: x[0], reverse=True)
+        selected_chunks = [item[1] for item in scored_chunks[:top_k]]
+        
+        return "\n\n...[Đoạn trích xuất từ tài liệu]...\n\n".join(selected_chunks)
+
+    # --- XỬ LÝ SUPABASE DATABASE ---
     def load_all_chats(self):
-        """Lấy toàn bộ danh sách chat từ DB khi vừa bấm F5"""
         if not self.supabase:
             return {}
         try:
@@ -58,8 +117,6 @@ class AIEngine:
             for row in res.data:
                 chat_id = row["id"]
                 title = row["title"]
-                
-                # Lấy tin nhắn thuộc chat_id này
                 msg_res = self.supabase.table("messages").select("*").eq("chat_id", chat_id).order("created_at", desc=False).execute()
                 chats[title] = {
                     "id": chat_id,
@@ -109,7 +166,7 @@ class AIEngine:
             except Exception as e:
                 print(f"Lỗi update title: {e}")
 
-    # --- CÁC HÀM XỬ LÝ TỆP & CHAT ---
+    # --- XỬ LÝ ĐỌC TỆP VĂN BẢN ---
     def extract_pdf(self, file_bytes):
         try:
             reader = PdfReader(file_bytes)
@@ -164,20 +221,23 @@ class AIEngine:
         except Exception as e:
             return f"Lỗi Vision AI: {str(e)}"
 
-    def chat_stream(self, clean_messages_history):
+    # --- HÀM CHAT STREAMING KẾT HỢP WEB SEARCH ---
+    def chat_stream(self, clean_messages_history, web_search_context=""):
         if not self.client:
             yield "Chưa tìm thấy API Key Groq."
             return
         try:
-            system_instruction = {
-                "role": "system",
-                "content": (
-                    "Bạn là Trợ lý AI giáo dục thông minh như Gemini. Trả lời chính xác, khoa học bằng tiếng Việt. "
-                    "Định dạng Markdown đẹp mắt, dùng LaTeX ($...$) cho công thức toán/hóa. "
-                    "Hãy ghi nhớ toàn bộ nội dung tệp đính kèm và lịch sử chat."
-                )
-            }
+            system_instruction_text = (
+                "Bạn là Trợ lý AI giáo dục thông minh như Gemini. Trả lời chính xác, khoa học bằng tiếng Việt. "
+                "Định dạng Markdown đẹp mắt, dùng LaTeX ($...$) cho công thức toán/hóa. "
+                "Hãy ghi nhớ toàn bộ nội dung tệp đính kèm và lịch sử chat."
+            )
+            if web_search_context:
+                system_instruction_text += f"\n\n[Dữ liệu tra cứu mới nhất từ Web real-time]:\n{web_search_context}\nHãy sử dụng kết quả tra cứu trên để bổ sung/kiểm chứng câu trả lời chính xác nhất."
+
+            system_instruction = {"role": "system", "content": system_instruction_text}
             api_messages = [system_instruction] + clean_messages_history
+            
             response_stream = self.client.chat.completions.create(
                 messages=api_messages,
                 model=self.text_model,
