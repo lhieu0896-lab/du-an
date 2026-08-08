@@ -49,17 +49,14 @@ with cot_tieu_de:
     st.markdown('<div class="tieu-de-ung-dung">Bộ Công Cụ Xử Lý Văn Bản & Trợ Lý Học Tập AI</div>', unsafe_allow_html=True)
     st.caption("Tóm tắt, Phân loại, NER, Sắc thái & Trợ lý Tra cứu Học tập Tự động")
 
-# 5. Hàm kích hoạt Theme chuyển đổi mượt mà
+# 5. Hàm kích hoạt Theme chuẩn tương phản cao (CHỮ RÕ NÉT 100%)
 def kich_hoat_theme(bg_color, accent_color, text_color, icons_list, toast_msg, toast_icon):
     items_html = "".join([f'<div class="item-bay">{icon}</div>' for icon in icons_list])
     
     css_code = f"""
         <style>
         * {{
-            transition: background-color 0.8s ease-in-out, 
-                        color 0.8s ease-in-out, 
-                        border-color 0.8s ease-in-out, 
-                        box-shadow 0.8s ease-in-out !important;
+            transition: background-color 0.6s ease-in-out, color 0.6s ease-in-out !important;
         }}
         .icon-bay-container {{ 
             position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; 
@@ -68,7 +65,7 @@ def kich_hoat_theme(bg_color, accent_color, text_color, icons_list, toast_msg, t
         .item-bay {{ 
             position: absolute; bottom: -60px; font-size: 2.2rem; 
             animation: bayUp 7s linear infinite; opacity: 0.85; 
-            filter: drop-shadow(0px 2px 6px rgba(0,0,0,0.2));
+            filter: drop-shadow(0px 2px 6px rgba(0,0,0,0.3));
         }}
         .item-bay:nth-child(1) {{ left: 8%; animation-delay: 0s; }}
         .item-bay:nth-child(2) {{ left: 28%; animation-delay: 1.5s; }}
@@ -83,21 +80,43 @@ def kich_hoat_theme(bg_color, accent_color, text_color, icons_list, toast_msg, t
             100% {{ transform: translateY(-120vh) rotate(360deg) scale(1.2); opacity: 0; }}
         }}
         .stApp, [data-testid="stHeader"], [data-testid="stSidebar"], section[data-testid="stSidebar"] > div {{ 
-            background-color: {bg_color} !important; color: {text_color} !important; 
+            background-color: {bg_color} !important; 
         }}
         .tieu-de-ung-dung {{ font-size: 2.3rem; font-weight: 800; color: {accent_color} !important; }}
-        div[data-testid="stMetric"], .stTextArea textarea, div[data-testid="stFileUploader"], div[data-baseweb="select"], div[data-baseweb="input"] {{ 
-            background-color: #ffffff !important; border: 2px solid {accent_color} !important; 
-            color: #1f1f1f !important; border-radius: 16px !important;
+        
+        /* ĐẢM BẢO CHỮ TRONG NỘI DUNG VÀ KHUNG HIỂN THỊ NÉT CĂNG NỀN TRẮNG */
+        .stMarkdown, .stText, p, span, li, h1, h2, h3, h4 {{ 
+            color: {text_color} !important; 
+            font-size: 1.05rem !important;
+            line-height: 1.6 !important;
         }}
-        div.stButton > button {{ 
-            background-color: {accent_color} !important; color: {bg_color} !important; 
-            font-weight: 800 !important; border-radius: 24px !important; border: none !important;
+        
+        /* KHUNG THÔNG BÁO / KẾT QUẢ CÓ NỀN TƯƠNG PHẢN CAO KHÔNG BỊ CHÌM CHỮ */
+        div[data-testid="stAlert"] {{
+            background-color: #ffffff !important;
+            border: 2px solid {accent_color} !important;
+            border-radius: 12px !important;
             box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
         }}
-        p, label, span, h1, h2, h3, h4 {{ color: {text_color} !important; }}
-        div[data-testid="stToast"] {{ background-color: #ffffff !important; border: 2px solid {accent_color} !important; }}
-        div[data-testid="stToast"] * {{ color: #1f1f1f !important; font-weight: 700 !important; }}
+        div[data-testid="stAlert"] * {{
+            color: #0f172a !important;
+            font-size: 1.05rem !important;
+            font-weight: 500 !important;
+        }}
+        div[data-testid="stAlert"] strong {{
+            color: #0284c7 !important;
+            font-weight: 700 !important;
+        }}
+        
+        div[data-testid="stMetric"], .stTextArea textarea, div[data-testid="stFileUploader"], div[data-baseweb="select"], div[data-baseweb="input"] {{ 
+            background-color: #ffffff !important; border: 2px solid {accent_color} !important; 
+            color: #0f172a !important; border-radius: 16px !important;
+        }}
+        div.stButton > button {{ 
+            background-color: {accent_color} !important; color: #0f172a !important; 
+            font-weight: 800 !important; border-radius: 24px !important; border: none !important;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2) !important;
+        }}
         </style>
         
         <div class="icon-bay-container">
@@ -112,7 +131,7 @@ def tu_dong_chuyen_theme(van_ban_phan_tich):
     text_check = van_ban_phan_tich.lower()
     
     if any(tk in text_check for tk in ["lịch sử", "30/4", "2/9", "chủ tịch", "nhà nước", "nguyễn phú trọng", "điện biên phủ", "kháng chiến", "chiến tranh", "đảng", "cách mạng"]):
-        kich_hoat_theme("#da251d", "#ffde00", "#ffffff", ["🇻🇳", "⭐", "🇻🇳", "✨", "⭐"], "Kích hoạt Theme Lịch sử!", "🇻🇳")
+        kich_hoat_theme("#851814", "#facc15", "#ffffff", ["🇻🇳", "⭐", "🇻🇳", "✨", "⭐"], "Kích hoạt Theme Lịch sử!", "🇻🇳")
     elif any(tk in text_check for tk in ["toán", "đại số", "hình học", "phương trình", "định lý", "pytago", "tích phân", "đạo hàm", "số học", "góc", "tam giác"]):
         kich_hoat_theme("#1b3022", "#a3e635", "#ffffff", ["📐", "🧮", "📏", "♾️", "📐"], "Kích hoạt Theme Toán học!", "📐")
     elif any(tk in text_check for tk in ["vật lý", "vật lí", "vận tốc", "gia tốc", "lực", "chuyển động", "điện trường", "sóng", "năng lượng", "áp suất"]):
@@ -122,7 +141,7 @@ def tu_dong_chuyen_theme(van_ban_phan_tich):
     elif any(tk in text_check for tk in ["sinh học", "tế bào", "adn", "arn", "gen", "di truyền", "quang hợp", "thực vật", "động vật", "sinh thái", "cơ thể"]):
         kich_hoat_theme("#14532d", "#86efac", "#ffffff", ["🧬", "🌿", "🌱", "🍃", "🧬"], "Kích hoạt Theme Sinh học!", "🧬")
     elif any(tk in text_check for tk in ["ngữ văn", "văn học", "tác phẩm", "thơ", "tiểu thuyết", "truyện", "văn bản", "nghệ thuật", "tác giả"]):
-        kich_hoat_theme("#fef3c7", "#b45309", "#78350f", ["📚", "✍️", "📖", "🍂", "📜"], "Kích hoạt Theme Ngữ văn!", "📚")
+        kich_hoat_theme("#451a03", "#fde047", "#ffffff", ["📚", "✍️", "📖", "🍂", "📜"], "Kích hoạt Theme Ngữ văn!", "📚")
     elif any(tk in text_check for tk in ["địa lý", "địa lí", "khí hậu", "địa hình", "bản đồ", "dân số", "thời tiết", "đại dương", "lục địa", "trái đất"]):
         kich_hoat_theme("#0c4a6e", "#38bdf8", "#ffffff", ["🌍", "☀️", "🗺️", "⛰️", "🌍"], "Kích hoạt Theme Địa lý!", "🌍")
 
@@ -236,7 +255,7 @@ if nut_thuc_thi:
             st.markdown("#### 📚 Các khái niệm học tập bóc tách được:")
             if ket_qua["key_concepts"]:
                 for kc in ket_qua["key_concepts"]:
-                    st.write(kc)
+                    st.info(kc)
             else:
                 st.caption("Không trích xuất được khái niệm rõ ràng.")
             
