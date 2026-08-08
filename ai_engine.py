@@ -18,7 +18,7 @@ if hasattr(sys.stdout, 'reconfigure'):
 
 class DongCoAI:
     def __init__(self):
-        # Lấy danh sách API Keys từ secrets 
+        # Nạp danh sách các API Key từ Secrets hoặc biến môi trường
         self.danh_sach_keys = []
         try:
             if "GROQ_API_KEYS" in st.secrets:
@@ -32,9 +32,6 @@ class DongCoAI:
             key_don = os.getenv("GROQ_API_KEY", "")
             if key_don:
                 self.danh_sach_keys = [key_don]
-
-        self.khoa_api_mac_dinh = self.danh_sach_keys[0] if self.danh_sach_keys else ""
-        self.ket_noi_groq = Groq(api_key=self.khoa_api_mac_dinh) if self.khoa_api_mac_dinh else None
 
         # Kết nối CSDL Supabase
         self.ket_noi_supabase: Client = None
@@ -114,7 +111,7 @@ class DongCoAI:
         except Exception as e:
             return f"Lỗi tìm kiếm web: {str(e)}"
 
-    # --- TỰ ĐỘNG ĐẶT TÊN CHAT ---
+    # --- TỰ ĐỘNG ĐẶT TÊN CHAT (XOAY KEY DỘNG) ---
     def tao_tieu_de_chat(self, cau_hoi_dau_tien):
         if not self.danh_sach_keys:
             return "Cuộc trò chuyện mới"
@@ -176,7 +173,7 @@ class DongCoAI:
         luong_bo_nho.seek(0)
         return luong_bo_nho
 
-    # --- SUPABASE DATABASE (PHÂN QUYỀN CÁ NHÂN HÓA) ---
+    # --- SUPABASE DATABASE ---
     def tai_danh_sach_chat_nguoi_dung(self, id_nguoi_dung):
         if not self.ket_noi_supabase:
             return {}
@@ -235,10 +232,11 @@ class DongCoAI:
             except Exception as e:
                 print(f"Lỗi cập nhật tiêu đề: {e}")
 
-    # --- ĐỌC CÁC TỆP ĐÍNH KÈM (PDF, WORD, EXCEL, HÌNH ẢNH) ---
+    # --- ĐỌC TỆP ĐÍNH KÈM (CÓ HỖ TRỢ FILE TẠO TỪ WPS) ---
     def doc_file_pdf(self, luong_bytes_file):
-        """Bóc tách chữ viết từ file PDF"""
         try:
+            if hasattr(luong_bytes_file, 'seek'):
+                luong_bytes_file.seek(0)
             doc_pdf = PdfReader(luong_bytes_file)
             cac_trang_van_ban = []
             for i, trang in enumerate(doc_pdf.pages):
@@ -251,16 +249,38 @@ class DongCoAI:
             return f"Lỗi đọc file PDF: {str(e)}"
 
     def doc_file_word(self, luong_bytes_file):
-        """Đọc văn bản từ file Microsoft Word (.docx)"""
         try:
-            doc_word = docx.Document(luong_bytes_file)
-            return "\n".join([doan.text for doan in doc_word.paragraphs if doan.text.strip()])
+            if hasattr(luong_bytes_file, 'seek'):
+                luong_bytes_file.seek(0)
+            
+            # Thử đọc bằng docx tiêu chuẩn
+            try:
+                doc_word = docx.Document(luong_bytes_file)
+                danh_sach_doan = [doan.text.strip() for doan in doc_word.paragraphs if doan.text and doan.text.strip()]
+                for bang in doc_word.tables:
+                    for hang in bang.rows:
+                        hang_text = " | ".join([o.text.strip() for o in hang.cells if o.text.strip()])
+                        if hang_text:
+                            danh_sach_doan.append(hang_text)
+                van_ban = "\n".join(danh_sach_doan)
+                if van_ban.strip():
+                    return van_ban
+            except Exception:
+                pass
+
+            # Dự phòng nếu là file tạo từ WPS Office
+            import docx2txt
+            if hasattr(luong_bytes_file, 'seek'):
+                luong_bytes_file.seek(0)
+            text_wps = docx2txt.process(luong_bytes_file)
+            return text_wps.strip() if text_wps and text_wps.strip() else "FILE_WORD_RONG"
         except Exception as e:
             return f"Lỗi đọc file Word: {str(e)}"
 
     def doc_file_excel(self, luong_bytes_file):
-        """Đọc bảng dữ liệu từ file Excel (.xlsx, .xls) và đổi thành Markdown"""
         try:
+            if hasattr(luong_bytes_file, 'seek'):
+                luong_bytes_file.seek(0)
             bang_excel = pd.read_excel(luong_bytes_file, sheet_name=None)
             van_ban_trich_xuat = []
             for ten_sheet, df in bang_excel.items():
@@ -271,10 +291,11 @@ class DongCoAI:
             return f"Lỗi đọc file Excel: {str(e)}"
 
     def phan_tich_hinh_anh(self, luong_bytes_file, yeu_cau="Đọc và trích xuất toàn bộ chữ viết có trong hình này."):
-        """Sử dụng mô hình Llama Vision AI để đọc nội dung chữ từ Hình ảnh (OCR)"""
         if not self.danh_sach_keys:
             return "Chưa cấu hình API Key."
         
+        if hasattr(luong_bytes_file, 'seek'):
+            luong_bytes_file.seek(0)
         anh_base64 = base64.b64encode(luong_bytes_file.getvalue()).decode('utf-8')
         
         for key in self.danh_sach_keys:
@@ -299,7 +320,7 @@ class DongCoAI:
                 continue
         return "Lỗi Vision AI: Không thể xử lý hình ảnh qua các Key hiện tại."
 
-    # --- CHAT STREAMING CÓ TÍNH NĂNG XOAY API KEY TỰ ĐỘNG ---
+    # --- CHAT STREAMING XOAY API KEY CHUẨN XÁC ---
     def luong_phan_hoi_chat(self, lich_su_tin_nhan_sach, ngu_canh_web=""):
         if not self.danh_sach_keys:
             yield "Chưa cấu hình API Key Groq."
@@ -321,7 +342,7 @@ class DongCoAI:
         tin_nhan_he_thong = {"role": "system", "content": huong_dan_he_thong}
         danh_sach_tin_nhan_gui = [tin_nhan_he_thong] + lich_su_tin_nhan_sach
 
-        # Vòng lặp xoay API Key tự động khi gặp lỗi rate limit (429)
+        # Vòng lặp xoay API Key tự động khi gặp lỗi 429
         for idx, key in enumerate(self.danh_sach_keys):
             try:
                 client_tam = Groq(api_key=key)
@@ -335,14 +356,15 @@ class DongCoAI:
                 for mieng_chu in luong_phan_hoi:
                     if mieng_chu.choices[0].delta.content:
                         yield mieng_chu.choices[0].delta.content
-                return
+                return # Trả về xong xuôi thì thoát ngay
             except Exception as e:
                 chuoi_loi = str(e)
+                # Bắt lỗi vượt hạn mức (Rate limit 429) để tự động nhảy sang Key tiếp theo
                 if "429" in chuoi_loi or "rate_limit_exceeded" in chuoi_loi:
-                    print(f"API Key số {idx+1} hết hạn mức! Đang tự động chuyển sang Key tiếp theo...")
+                    print(f"API Key số {idx+1} đã hết hạn mức! Đang tự động chuyển sang Key tiếp theo...")
                     continue
                 else:
                     yield f"Lỗi kết nối AI: {chuoi_loi}"
                     return
 
-        yield "Tất cả các API Key dự phòng đều đã chạm hạn mức ngày! Vui lòng thử lại sau."
+        yield "Tất cả các API Key dự phòng đều đã chạm hạn mức ngày! Vui lòng thử lại sau ít phút."
