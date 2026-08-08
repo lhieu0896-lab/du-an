@@ -8,7 +8,204 @@ from ai_engine import AIEngine
 st.set_page_config(
     page_title="Bộ Công Cụ Xử Lý Văn Bản & Trợ Lý Học Tập AI", 
     page_icon="⚡",
-    layout="wide"
+    layout="wide"# 6. Hàm kiểm tra văn bản để tự chuyển 15 Theme chuẩn xác 100%
+def tu_dong_chuyen_theme(van_ban_phan_tich):
+    text_check = van_ban_phan_tich.lower()
+    
+    # 1. CÔNG NGHỆ & LẬP TRÌNH (IT)
+    if any(tk in text_check for tk in ["lập trình", "phần mềm", "python", "c++", "thuật toán", "trí tuệ nhân tạo", "database", "server", "github", "mạng máy tính", "mã nguồn"]):
+        banner = """
+        <div class="theme-banner-box">
+            <div class="theme-banner-icon">💻🤖</div>
+            <div>
+                <div class="theme-banner-title">Chủ Đề: Công Nghệ & Lập Trình (IT)</div>
+                <div class="theme-banner-desc">Hệ thống mã nguồn, thuật toán, trí tuệ nhân tạo và cơ sở dữ liệu.</div>
+            </div>
+        </div>
+        """
+        kich_hoat_theme("#0f172a", "#38bdf8", "#ffffff", ["💻", "🤖", "⚡", "🖥️", "⚙️"], banner, "Kích hoạt Theme Công nghệ!", "💻")
+
+    # 2. KINH TẾ & TÀI CHÍNH
+    elif any(tk in text_check for tk in ["phạm nhật vượng", "vinfast", "vingroup", "kinh tế", "doanh nhân", "doanh nghiệp", "tài chính", "chứng khoán", "ngân hàng", "đầu tư", "lợi nhuận", "lạm phát"]):
+        banner = """
+        <div class="theme-banner-box">
+            <div class="theme-banner-icon">💼📈</div>
+            <div>
+                <div class="theme-banner-title">Chủ Đề: Kinh Tế & Tài Chính Doanh Nghiệp</div>
+                <div class="theme-banner-desc">Thông tin thị trường, hoạt động doanh nghiệp, tài chính và chứng khoán.</div>
+            </div>
+        </div>
+        """
+        kich_hoat_theme("#0f291e", "#10b981", "#ffffff", ["💼", "📈", "💵", "💎", "📊"], banner, "Kích hoạt Theme Kinh tế!", "💼")
+
+    # 3. SINH HỌC
+    elif any(tk in text_check for tk in ["quang hợp", "sinh học", "sinh vật", "tế bào", "adn", "arn", "gen", "di truyền", "thực vật", "động vật", "sinh thái", "lục lạp", "diệp lục"]):
+        banner = """
+        <div class="theme-banner-box">
+            <div class="theme-banner-icon">🧬🌿</div>
+            <div>
+                <div class="theme-banner-title">Chủ Đề: Sinh Học & Hệ Sinh Thái</div>
+                <div class="theme-banner-desc">Mã gen di truyền ADN, cấu trúc tế bào sống, quang hợp và sinh giới.</div>
+            </div>
+        </div>
+        """
+        kich_hoat_theme("#14532d", "#86efac", "#ffffff", ["🧬", "🌿", "🌱", "🍃", "🧬"], banner, "Kích hoạt Theme Sinh học!", "🧬")
+
+    # 4. HÓA HỌC
+    elif any(tk in text_check for tk in ["hóa học", "phản ứng hóa học", "axit", "bazơ", "nguyên tố hóa học", "mol", "kết tủa", "oxi hóa", "electron", "bảng tuần hoàn"]):
+        banner = """
+        <div class="theme-banner-box">
+            <div class="theme-banner-icon">🧪🔬</div>
+            <div>
+                <div class="theme-banner-title">Chủ Đề: Hóa Học & Phản Ứng Nguyên Tố</div>
+                <div class="theme-banner-desc">Phòng thí nghiệm, biến đổi chất, liên kết hóa học và bảng tuần hoàn.</div>
+            </div>
+        </div>
+        """
+        kich_hoat_theme("#064e3b", "#34d399", "#ffffff", ["🧪", "🔬", "🫧", "⚗️", "🧪"], banner, "Kích hoạt Theme Hóa học!", "🧪")
+
+    # 5. LỊCH SỬ CỔ ĐIỂN
+    elif any(tk in text_check for tk in ["lịch sử", "30/4", "2/9", "chiến tranh", "kháng chiến", "điện biên phủ", "triều đại", "bảo tàng", "di tích lịch sử", "sử học"]):
+        banner = """
+        <div class="theme-banner-box">
+            <div class="theme-banner-icon">🏛️📜</div>
+            <div>
+                <div class="theme-banner-title">Chủ Đề: Lịch Sử Cổ Điển & Bảng Vàng Sử Sách</div>
+                <div class="theme-banner-desc">Không gian bảo tàng hoài niệm, trích xuất tư liệu di tích và sự kiện lịch sử.</div>
+            </div>
+        </div>
+        """
+        kich_hoat_theme("#2b1b17", "#d97706", "#ffffff", ["🏛️", "📜", "📜", "⏳", "🥁"], banner, "Kích hoạt Theme Lịch sử!", "📜")
+
+    # 6. TOÁN HỌC
+    elif any(tk in text_check for tk in ["toán học", "đại số", "hình học", "phương trình", "định lý", "pytago", "tích phân", "đạo hàm", "số học", "ma trận"]):
+        banner = """
+        <div class="theme-banner-box">
+            <div class="theme-banner-icon">📐🧮</div>
+            <div>
+                <div class="theme-banner-title">Chủ Đề: Toán Học & Không Gian Số</div>
+                <div class="theme-banner-desc">Bảng đen phấn trắng, các định lý, công thức đại số và mô hình hình học.</div>
+            </div>
+        </div>
+        """
+        kich_hoat_theme("#1b3022", "#a3e635", "#ffffff", ["📐", "🧮", "📏", "♾️", "📐"], banner, "Kích hoạt Theme Toán học!", "📐")
+
+    # 7. VẬT LÝ
+    elif any(tk in text_check for tk in ["vật lý", "vật lí", "vận tốc", "gia tốc", "chuyển động", "điện trường", "thấu kính", "áp suất", "trọng lực", "bán dẫn"]):
+        banner = """
+        <div class="theme-banner-box">
+            <div class="theme-banner-icon">👨‍🔬⚛️</div>
+            <div>
+                <div class="theme-banner-title">Chủ Đề: Vật Lý & Cơ Học Vũ Trụ</div>
+                <div class="theme-banner-desc">Mô hình nguyên tử, quy luật vận động, lực học và hiện tượng vật lý.</div>
+            </div>
+        </div>
+        """
+        kich_hoat_theme("#0b132b", "#64dfdf", "#ffffff", ["⚡", "⚛️", "💡", "🧲", "⚡"], banner, "Kích hoạt Theme Vật lý!", "⚡")
+
+    # 8. NGỮ VĂN
+    elif any(tk in text_check for tk in ["ngữ văn", "văn học", "tác phẩm", "tiểu thuyết", "truyện ngắn", "nghệ thuật văn học", "thơ ca", "tác giả", "nhân vật văn học"]):
+        banner = """
+        <div class="theme-banner-box">
+            <div class="theme-banner-icon">📜📚</div>
+            <div>
+                <div class="theme-banner-title">Chủ Đề: Ngữ Văn & Tác Phẩm Văn Học</div>
+                <div class="theme-banner-desc">Thư cổ, sách kinh điển và phân tích nghệ thuật ngôn từ nghệ thuật.</div>
+            </div>
+        </div>
+        """
+        kich_hoat_theme("#451a03", "#fde047", "#ffffff", ["📚", "✍️", "📖", "🍂", "📜"], banner, "Kích hoạt Theme Ngữ văn!", "📚")
+
+    # 9. ĐỊA LÝ
+    elif any(tk in text_check for tk in ["địa lý", "địa lí", "khí hậu", "địa hình", "bản đồ", "dân số", "thời tiết", "đại dương", "lục địa", "thủy văn"]):
+        banner = """
+        <div class="theme-banner-box">
+            <div class="theme-banner-icon">🌍🗺️</div>
+            <div>
+                <div class="theme-banner-title">Chủ Đề: Địa Lý & Quả Địa Cầu</div>
+                <div class="theme-banner-desc">Bản đồ địa hình, khí hậu các châu lục và các hiện tượng tự nhiên.</div>
+            </div>
+        </div>
+        """
+        kich_hoat_theme("#0c4a6e", "#38bdf8", "#ffffff", ["🌍", "☀️", "🗺️", "⛰️", "🌍"], banner, "Kích hoạt Theme Địa lý!", "🌍")
+
+    # 10. NGHỆ THUẬT & ÂM NHẠC
+    elif any(tk in text_check for tk in ["âm nhạc", "hội họa", "nghệ thuật", "ca khúc", "bức tranh", "triển lãm", "nhạc sĩ", "họa sĩ", "giai điệu", "nhạc cụ"]):
+        banner = """
+        <div class="theme-banner-box">
+            <div class="theme-banner-icon">🎨🎶</div>
+            <div>
+                <div class="theme-banner-title">Chủ Đề: Nghệ Thuật & Âm Nhạc</div>
+                <div class="theme-banner-desc">Giai điệu âm nhạc, tác phẩm hội họa và sáng tác nghệ thuật.</div>
+            </div>
+        </div>
+        """
+        kich_hoat_theme("#3b0764", "#f472b6", "#ffffff", ["🎨", "🎶", "🎵", "🎸", "🖌️"], banner, "Kích hoạt Theme Nghệ thuật!", "🎨")
+
+    # 11. PHÁP LUẬT
+    elif any(tk in text_check for tk in ["pháp luật", "hiến pháp", "bộ luật", "tòa án", "luật sư", "quyền công dân", "hình sự", "dân sự", "nghị định"]):
+        banner = """
+        <div class="theme-banner-box">
+            <div class="theme-banner-icon">⚖️📜</div>
+            <div>
+                <div class="theme-banner-title">Chủ Đề: Pháp Luật & Tư Pháp</div>
+                <div class="theme-banner-desc">Hệ thống văn bản quy phạm pháp luật, hiến pháp và quyền công dân.</div>
+            </div>
+        </div>
+        """
+        kich_hoat_theme("#1e1b4b", "#eab308", "#ffffff", ["⚖️", "📜", "🏛️", "⚖️", "📜"], banner, "Kích hoạt Theme Pháp luật!", "⚖️")
+
+    # 12. Y HỌC & SỨC KHỎE
+    elif any(tk in text_check for tk in ["y học", "bệnh viện", "bác sĩ", "dinh dưỡng", "sức khỏe", "thể thao", "bóng đá", "cầu lông", "tập luyện", "vitamin"]):
+        banner = """
+        <div class="theme-banner-box">
+            <div class="theme-banner-icon">🏥⚽</div>
+            <div>
+                <div class="theme-banner-title">Chủ Đề: Y Học & Sức Khỏe Thể Thao</div>
+                <div class="theme-banner-desc">Kiến thức y học, chế độ dinh dưỡng, sức khỏe và luyện tập thể thao.</div>
+            </div>
+        </div>
+        """
+        kich_hoat_theme("#134e4a", "#2dd4bf", "#ffffff", ["🏥", "⚽", "💊", "🩺", "🏃"], banner, "Kích hoạt Theme Y học & Thể thao!", "🏥")
+
+    # 13. ẨM THỰC & DU LỊCH
+    elif any(tk in text_check for tk in ["ẩm thực", "món ăn", "nấu ăn", "nhà hàng", "du lịch", "khách sạn", "đặc sản", "điểm đến"]):
+        banner = """
+        <div class="theme-banner-box">
+            <div class="theme-banner-icon">🍳✈️</div>
+            <div>
+                <div class="theme-banner-title">Chủ Đề: Ẩm Thực & Trải Nghiệm Du Lịch</div>
+                <div class="theme-banner-desc">Văn hóa ẩm thực, món ăn vùng miền và các hành trình khám phá du lịch.</div>
+            </div>
+        </div>
+        """
+        kich_hoat_theme("#431407", "#fb923c", "#ffffff", ["🍳", "✈️", "🍕", "🧳", "🥐"], banner, "Kích hoạt Theme Ẩm thực & Du lịch!", "🍳")
+
+    # 14. THIÊN VĂN & VŨ TRỤ
+    elif any(tk in text_check for tk in ["thiên văn", "hành tinh", "sao hỏa", "mặt trăng", "hố đen", "ngân hà", "kính thiên văn", "phi hành gia", "nasa"]):
+        banner = """
+        <div class="theme-banner-box">
+            <div class="theme-banner-icon">🌌🪐</div>
+            <div>
+                <div class="theme-banner-title">Chủ Đề: Thiên Văn Học & Vũ Trụ</div>
+                <div class="theme-banner-desc">Khám phá các hành tinh, thiên thể, dải ngân hà và bí ẩn vũ trụ.</div>
+            </div>
+        </div>
+        """
+        kich_hoat_theme("#180b2b", "#c084fc", "#ffffff", ["🌌", "🪐", "⭐", "🚀", "🛸"], banner, "Kích hoạt Theme Thiên văn!", "🌌")
+
+    # 15. GIẢI TRÍ & GAMING
+    elif any(tk in text_check for tk in ["đấu trường chân lý", "tft", "minecraft", "game", "trò chơi", "phim ảnh", "điện ảnh", "hollywood", "streamer"]):
+        banner = """
+        <div class="theme-banner-box">
+            <div class="theme-banner-icon">🎮🎬</div>
+            <div>
+                <div class="theme-banner-title">Chủ Đề: Giải Trí, Gaming & Điện Ảnh</div>
+                <div class="theme-banner-desc">Thế giới trò chơi điện tử, esports, tác phẩm điện ảnh và truyền thông giải trí.</div>
+            </div>
+        </div>
+        """
+        kich_hoat_theme("#450a0a", "#f87171", "#ffffff", ["🎮", "🎬", "🕹️", "🍿", "🎧"], banner, "Kích hoạt Theme Giải trí & Gaming!", "🎮")
 )
 
 # 2. Lưu mô hình AI vào bộ nhớ đệm RAM
