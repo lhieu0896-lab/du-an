@@ -49,28 +49,37 @@ class AIEngine:
         self.text_model = "llama-3.3-70b-versatile"
         self.vision_model = "llama-3.2-11b-vision-preview"
 
-    # --- TÍNH NĂNG 1: TÌM KIẾM WEB THỜI GIAN THỰC (WEB SEARCH) ---
-    def search_web(self, query, max_results=4):
-        """Tìm kiếm thông tin cập nhật trên Web bằng DuckDuckGo"""
+    # --- TÍNH NĂNG 1: TÌM KIẾM WEB TIẾNG VIỆT REAL-TIME ---
+    def search_web(self, query, max_results=5):
+        """Tìm kiếm web tiếng Việt tối ưu bằng DuckDuckGo"""
         try:
             results = []
             with DDGS() as ddgs:
-                ddg_results = ddgs.text(query, max_results=max_results)
+                # Tìm kiếm ưu tiên khu vực Việt Nam
+                ddg_results = list(ddgs.text(query, region="vn-vi", max_results=max_results))
+                if not ddg_results:
+                    # Nếu chưa có kết quả thì tìm kiếm toàn cầu
+                    ddg_results = list(ddgs.text(query, max_results=max_results))
+                
                 for r in ddg_results:
-                    results.append(f"📌 **{r.get('title')}**\nNguồn: {r.get('href')}\nNội dung: {r.get('body')}\n")
-            return "\n".join(results) if results else ""
+                    title = r.get('title', '')
+                    href = r.get('href', '')
+                    body = r.get('body', '')
+                    if body:
+                        results.append(f"📌 **{title}**\nNguồn: {href}\nNội dung: {body}\n")
+                        
+            return "\n".join(results) if results else "CHƯA_CÓ_KẾT_QUẢ"
         except Exception as e:
             print(f"Lỗi tìm kiếm web: {e}")
-            return ""
+            return f"Lỗi truy cập kết quả tìm kiếm Web: {str(e)}"
 
-    # --- TÍNH NĂNG 2: TỰ ĐỘNG ĐẶT TÊN CHO ĐOẠN CHAT (AUTO-TITLING) ---
+    # --- TÍNH NĂNG 2: TỰ ĐỘNG ĐẶT TÊN DỰA TRÊN CÂU HỎI ---
     def generate_chat_title(self, first_user_message):
-        """Tạo tên cuộc trò chuyện ngắn gọn dựa trên câu hỏi đầu tiên"""
         if not self.client:
             return "Cuộc trò chuyện mới"
         try:
             prompt = (
-                f"Hãy tạo một tiêu đề siêu ngắn gọn (từ 3 đến 6 từ) bằng tiếng Việt cho cuộc trò chuyện có câu hỏi đầu tiên là: '{first_user_message}'. "
+                f"Hãy tạo một tiêu đề siêu ngắn gọn (từ 3 đến 5 từ) bằng tiếng Việt cho cuộc trò chuyện có câu hỏi đầu tiên là: '{first_user_message}'. "
                 "Chỉ trả về duy nhất chuỗi tiêu đề, không ghi thêm dấu ngoặc kép hay từ thừa."
             )
             response = self.client.chat.completions.create(
@@ -84,16 +93,12 @@ class AIEngine:
         except Exception:
             return "Cuộc trò chuyện mới"
 
-    # --- TÍNH NĂNG 3: TRÍCH XUẤT TÀI LIỆU DÀI THÔNG MINH (LIGHT RAG CHUNKING) ---
+    # --- TÍNH NĂNG 3: TRÍCH XUẤT ĐOẠN TÀI LIỆU DÀI (LIGHT RAG) ---
     def retrieve_relevant_chunks(self, full_text, query, chunk_size=1500, top_k=3):
-        """Cắt tài liệu dài thành nhiều đoạn và trích xuất các đoạn liên quan nhất đến câu hỏi"""
         if len(full_text) <= chunk_size * 2:
-            return full_text  # Nếu file ngắn thì giữ nguyên
+            return full_text
 
-        # Cắt văn bản thành các chunks
         chunks = [full_text[i:i+chunk_size] for i in range(0, len(full_text), chunk_size - 200)]
-        
-        # Tìm các chunk chứa từ khóa của câu hỏi
         query_words = set(query.lower().split())
         scored_chunks = []
         for chunk in chunks:
@@ -101,13 +106,11 @@ class AIEngine:
             score = sum(1 for word in query_words if len(word) > 2 and word in chunk_lower)
             scored_chunks.append((score, chunk))
         
-        # Sắp xếp lấy ra top_k chunk phù hợp nhất
         scored_chunks.sort(key=lambda x: x[0], reverse=True)
         selected_chunks = [item[1] for item in scored_chunks[:top_k]]
-        
         return "\n\n...[Đoạn trích xuất từ tài liệu]...\n\n".join(selected_chunks)
 
-    # --- XỬ LÝ SUPABASE DATABASE ---
+    # --- SUPABASE DATABASE ---
     def load_all_chats(self):
         if not self.supabase:
             return {}
@@ -166,7 +169,7 @@ class AIEngine:
             except Exception as e:
                 print(f"Lỗi update title: {e}")
 
-    # --- XỬ LÝ ĐỌC TỆP VĂN BẢN ---
+    # --- ĐỌC TỆP ---
     def extract_pdf(self, file_bytes):
         try:
             reader = PdfReader(file_bytes)
@@ -221,19 +224,25 @@ class AIEngine:
         except Exception as e:
             return f"Lỗi Vision AI: {str(e)}"
 
-    # --- HÀM CHAT STREAMING KẾT HỢP WEB SEARCH ---
+    # --- HÀM CHAT STREAMING BẮT BUỘC ĐỌC VÀ TỔNG HỢP WEB CONTEXT ---
     def chat_stream(self, clean_messages_history, web_search_context=""):
         if not self.client:
             yield "Chưa tìm thấy API Key Groq."
             return
         try:
             system_instruction_text = (
-                "Bạn là Trợ lý AI giáo dục thông minh như Gemini. Trả lời chính xác, khoa học bằng tiếng Việt. "
-                "Định dạng Markdown đẹp mắt, dùng LaTeX ($...$) cho công thức toán/hóa. "
-                "Hãy ghi nhớ toàn bộ nội dung tệp đính kèm và lịch sử chat."
+                "Bạn là Trợ lý AI giáo dục thông minh và hữu ích như Gemini. "
+                "Hãy trả lời tự nhiên, chính xác, lịch sự bằng tiếng Việt. "
+                "Định dạng Markdown đẹp mắt, dùng LaTeX ($...$) cho công thức toán/hóa."
             )
-            if web_search_context:
-                system_instruction_text += f"\n\n[Dữ liệu tra cứu mới nhất từ Web real-time]:\n{web_search_context}\nHãy sử dụng kết quả tra cứu trên để bổ sung/kiểm chứng câu trả lời chính xác nhất."
+            
+            if web_search_context and web_search_context != "CHƯA_CÓ_KẾT_QUẢ":
+                system_instruction_text += (
+                    f"\n\n[DỮ LIỆU BỔ SUNG TRUY CẤP TỪ WEB REAL-TIME]:\n{web_search_context}\n\n"
+                    "CẢNH BÁO QUAN TRỌNG: Người dùng đang truy vấn thông tin thực tế. "
+                    "Hãy ưu tiên sử dụng thông tin từ mục [DỮ LIỆU BỔ SUNG TRUY CẤP TỪ WEB REAL-TIME] ở trên để tổng hợp và trả lời trực tiếp cho người dùng. "
+                    "Tuyệt đối KHÔNG trả lời là 'tôi không thể truy cập internet'."
+                )
 
             system_instruction = {"role": "system", "content": system_instruction_text}
             api_messages = [system_instruction] + clean_messages_history
@@ -241,7 +250,7 @@ class AIEngine:
             response_stream = self.client.chat.completions.create(
                 messages=api_messages,
                 model=self.text_model,
-                temperature=0.4,
+                temperature=0.3,
                 max_tokens=4000,
                 stream=True
             )
