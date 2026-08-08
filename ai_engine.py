@@ -7,16 +7,25 @@ from collections import Counter
 from underthesea import classify, sentiment, ner, pos_tag
 from groq import Groq
 
-# Ép hệ thống dùng chuẩn UTF-8 cho dòng xuất/nhập
+# Ép hệ thống dùng chuẩn UTF-8
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
 
 class AIEngine:
     def __init__(self):
         print("Khởi tạo hệ thống xử lý ngôn ngữ tự nhiên AI...")
-        # Lấy API Key an toàn từ biến môi trường của hệ thống/Streamlit Cloud
+        # Lấy API Key từ Secrets của Streamlit Cloud hoặc Biến môi trường
         self.api_key = os.getenv("GROQ_API_KEY", "")
         
+        # Nếu không thấy trong os.getenv, thử đọc trực tiếp từ st.secrets của Streamlit
+        if not self.api_key:
+            try:
+                import streamlit as st
+                if "GROQ_API_KEY" in st.secrets:
+                    self.api_key = st.secrets["GROQ_API_KEY"]
+            except Exception:
+                pass
+
         if self.api_key:
             self.client = Groq(api_key=self.api_key)
         else:
@@ -51,7 +60,6 @@ class AIEngine:
             )
             van_ban_tom_tat = response.choices[0].message.content.strip()
         except Exception:
-            # Thuật toán tóm tắt cơ bản dự phòng
             danh_sach_cau = [c.strip() for c in re.split(r'(?<=[.!?])\s+', text_sach) if len(c.strip()) > 10]
             if len(danh_sach_cau) <= 2:
                 van_ban_tom_tat = text_sach
@@ -158,7 +166,7 @@ class AIEngine:
             "entities": thuc_the_dinh_dang
         }
 
-    # 4. TRỢ LÝ TRA CỨU HỌC TẬP (TRỰC TIẾP DÙNG GROQ AI)
+    # 4. TRỢ LÝ TRA CỨU HỌC TẬP
     def process_learning_assistant(self, van_ban="", cau_hoi=""):
         thoi_gian_bat_dau = time.time()
         nguon_du_lieu = "Mô hình Trí tuệ Nhân tạo Groq Llama 3.3 70B"
@@ -200,7 +208,6 @@ class AIEngine:
             nguon_du_lieu = f"Cảnh báo: {str(e)}"
             tra_loi_cau_hoi = "Chưa tìm thấy API Key. Hãy điền GROQ_API_KEY vào mục Settings -> Secrets trên Streamlit Cloud."
 
-        # Bóc tách khái niệm chính bằng Underthesea
         if tra_loi_cau_hoi and "Chưa tìm thấy API Key" not in tra_loi_cau_hoi:
             kq_thuc_the = self.process_entities(tra_loi_cau_hoi)
             tu_khoa_hoc_tap = kq_thuc_the["keywords"]
