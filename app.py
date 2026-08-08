@@ -27,7 +27,7 @@ if "chats" not in st.session_state or not st.session_state.chats:
     else:
         init_id = str(uuid.uuid4())
         default_title = "Cuộc trò chuyện mới"
-        init_msg = "Xin chào! Lịch sử chat được lưu vĩnh viễn trên Database. Hệ thống đã tích hợp **Tìm kiếm Web Real-time**, **Tự động đặt tên Chat** và **Phân tích Tài liệu Dài (RAG)**! ✨"
+        init_msg = "Xin chào! Lịch sử chat được lưu vĩnh viễn trên Database. Hệ thống đã hỗ trợ **Tìm kiếm Web Real-time**, **Tự động đặt tên Chat** và **Phân tích Tài liệu Dài (RAG)**! ✨"
         st.session_state.chats = {
             default_title: {
                 "id": init_id,
@@ -53,7 +53,7 @@ with st.sidebar:
     st.write("---")
     
     # Nút bật/tắt Tìm kiếm Web Real-time
-    enable_web_search = st.toggle("🌐 Bật Tìm Kiếm Web Real-time", value=False)
+    enable_web_search = st.toggle("🌐 Bật Tìm Kiếm Web Real-time", value=True)
     
     st.write("---")
     
@@ -133,7 +133,7 @@ if user_input := st.chat_input("Nhập câu hỏi hoặc yêu cầu AI phân tí
     extracted_text_from_file = ""
     display_file_note = ""
 
-    # Xử lý tệp đính kèm với thuật toán Smart RAG Chunking
+    # Xử lý tệp đính kèm với Smart RAG
     if uploaded_file is not None:
         file_bytes = io.BytesIO(uploaded_file.getvalue())
         file_name = uploaded_file.name
@@ -154,7 +154,6 @@ if user_input := st.chat_input("Nhập câu hỏi hoặc yêu cầu AI phân tí
             elif file_ext == "txt":
                 raw_text = uploaded_file.getvalue().decode("utf-8")
         
-            # Trích xuất đoạn phù hợp nhất (Light RAG Chunking)
             if raw_text and raw_text != "PDF_IS_SCANNED_IMAGE":
                 extracted_text_from_file = mo_hinh_ai.retrieve_relevant_chunks(raw_text, user_input)
             else:
@@ -162,10 +161,10 @@ if user_input := st.chat_input("Nhập câu hỏi hoặc yêu cầu AI phân tí
 
         display_file_note = f"\n\n📎 *Đã đính kèm: `{file_name}`*"
 
-    # Tra cứu Web Real-time nếu được bật
+    # Tra cứu Web Real-time
     web_search_context = ""
     if enable_web_search:
-        with st.spinner(f"🌐 Đang tra cứu thông tin Web real-time cho '{user_input}'..."):
+        with st.spinner(f"🌐 Đang tra cứu Web real-time cho '{user_input}'..."):
             web_search_context = mo_hinh_ai.search_web(user_input)
 
     if extracted_text_from_file:
@@ -174,19 +173,19 @@ if user_input := st.chat_input("Nhập câu hỏi hoặc yêu cầu AI phân tí
         full_api_prompt = user_input
 
     display_prompt = user_input + display_file_note
-    if enable_web_search and web_search_context:
-        display_prompt += "\n\n🌐 *[Đã tra cứu dữ liệu Web real-time]*"
+    if enable_web_search and web_search_context and web_search_context != "CHƯA_CÓ_KẾT_QUẢ":
+        display_prompt += "\n\n🌐 *[Đã tự động tìm kiếm & tổng hợp thông tin từ Web real-time]*"
 
     # Hiển thị câu hỏi người dùng
     with st.chat_message("user"):
         st.markdown(display_prompt)
 
-    # Lưu tin nhắn người dùng
+    # Lưu tin nhắn người dùng vào RAM & Database
     active_messages.append({"role": "user", "content": full_api_prompt, "display_content": display_prompt})
     if hasattr(mo_hinh_ai, "save_message"):
         mo_hinh_ai.save_message(active_id, "user", full_api_prompt, display_prompt)
 
-    # --- ĐẶT TÊN TỰ ĐỘNG NẾU LÀ CÂU HỎI ĐẦU TIÊN ---
+    # Đặt tên tự động nếu là câu hỏi đầu tiên
     user_msg_count = sum(1 for m in active_messages if m["role"] == "user")
     if user_msg_count == 1 and ("Cuộc trò chuyện" in st.session_state.current_chat or "Cuộc trò chuyện mới" in st.session_state.current_chat):
         new_auto_title = mo_hinh_ai.generate_chat_title(user_input)
@@ -203,7 +202,7 @@ if user_input := st.chat_input("Nhập câu hỏi hoặc yêu cầu AI phân tí
         stream_generator = mo_hinh_ai.chat_stream(clean_history_for_api, web_search_context=web_search_context)
         phan_hoi_ai = st.write_stream(stream_generator)
 
-    # Lưu tin nhắn trả lời của AI
+    # Lưu phản hồi AI vào RAM & Database
     active_messages.append({"role": "assistant", "content": phan_hoi_ai, "display_content": phan_hoi_ai})
     if hasattr(mo_hinh_ai, "save_message"):
         mo_hinh_ai.save_message(active_id, "assistant", phan_hoi_ai, phan_hoi_ai)
