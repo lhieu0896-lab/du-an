@@ -33,7 +33,7 @@ class AIEngine:
         self.text_model = "llama-3.3-70b-versatile"
         self.vision_model = "llama-3.2-11b-vision-preview"
 
-    # 1. Trích xuất PDF thông minh (Hỗ trợ cả PDF Text lẫn PDF Scan/Ảnh)
+    # 1. Trích xuất sạch 100% file PDF
     def extract_pdf(self, file_bytes):
         try:
             reader = PdfReader(file_bytes)
@@ -44,12 +44,8 @@ class AIEngine:
                     text_pages.append(f"[Trang {i+1}]: {txt.strip()}")
             
             full_text = "\n".join(text_pages)
-            
-            # Nếu PDF chọn được chữ bình thường
             if full_text.strip():
                 return full_text
-            
-            # Nếu PDF là dạng ảnh quét (Scanned) -> Trả về thông báo dùng Vision AI
             return "PDF_IS_SCANNED_IMAGE"
         except Exception as e:
             return f"Lỗi khi đọc file PDF: {str(e)}"
@@ -74,7 +70,7 @@ class AIEngine:
         except Exception as e:
             return f"Lỗi khi đọc file Excel: {str(e)}"
 
-    # 4. Phân tích Hình Ảnh / Trang PDF dạng ảnh qua Vision AI OCR
+    # 4. Phân tích Hình Ảnh qua Vision AI
     def analyze_image(self, file_bytes, prompt="Hãy đọc, trích xuất và liệt kê toàn bộ chữ viết, từ vựng có trong hình ảnh/trang tài liệu này."):
         if not self.client:
             return "Chưa cấu hình GROQ_API_KEY."
@@ -104,29 +100,36 @@ class AIEngine:
         except Exception as e:
             return f"Lỗi xử lý Vision OCR: {str(e)}"
 
-    # 5. Hàm Chat giữ trí nhớ lịch sử chuẩn API
-    def chat_with_memory(self, clean_messages_history):
+    # 5. Hàm Chat STREAMING (Gõ chữ thời gian thực chuẩn Gemini)
+    def chat_stream(self, clean_messages_history):
         if not self.client:
-            return "Chưa tìm thấy API Key. Hãy điền GROQ_API_KEY vào mục Settings -> Secrets trên Streamlit Cloud."
+            yield "Chưa tìm thấy API Key. Hãy điền GROQ_API_KEY vào mục Settings -> Secrets trên Streamlit Cloud."
+            return
 
         try:
             system_instruction = {
                 "role": "system",
                 "content": (
-                    "Bạn là một Trợ lý AI giáo dục thông minh và chu đáo. "
-                    "Hãy luôn ghi nhớ toàn bộ nội dung các tệp đính kèm (sách giáo khoa, PDF, Word, Excel, Ảnh) "
-                    "và lịch sử các câu hỏi trước đó của người dùng để trả lời chính xác, giải thích từ vựng HSK/tiếng Trung chu đáo."
+                    "Bạn là một Trợ lý AI giáo dục thông minh, đa năng và chu đáo như Gemini. "
+                    "Hãy trả lời tự nhiên, khoa học bằng tiếng Việt. Định dạng câu trả lời đẹp mắt bằng Markdown, "
+                    "sử dụng công thức LaTeX ($...$) khi trả lời Toán/Hóa/Lý. "
+                    "Hãy luôn ghi nhớ toàn bộ nội dung các tệp đính kèm và lịch sử trò chuyện."
                 )
             }
             
             api_messages = [system_instruction] + clean_messages_history
 
-            response = self.client.chat.completions.create(
+            response_stream = self.client.chat.completions.create(
                 messages=api_messages,
                 model=self.text_model,
-                temperature=0.3,
-                max_tokens=3500
+                temperature=0.4,
+                max_tokens=4000,
+                stream=True  # Bật chế độ Stream chữ
             )
-            return response.choices[0].message.content.strip()
+            
+            for chunk in response_stream:
+                if chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
+
         except Exception as e:
-            return f"Lỗi kết nối AI: {str(e)}"
+            yield f"Lỗi kết nối AI: {str(e)}"
