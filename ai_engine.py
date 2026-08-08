@@ -33,7 +33,7 @@ class AIEngine:
         self.text_model = "llama-3.3-70b-versatile"
         self.vision_model = "llama-3.2-11b-vision-preview"
 
-    # 1. Trích xuất sạch 100% file PDF (Dành cho Sách giáo khoa / Tài liệu)
+    # 1. Trích xuất PDF thông minh (Hỗ trợ cả PDF Text lẫn PDF Scan/Ảnh)
     def extract_pdf(self, file_bytes):
         try:
             reader = PdfReader(file_bytes)
@@ -42,8 +42,15 @@ class AIEngine:
                 txt = page.extract_text()
                 if txt and txt.strip():
                     text_pages.append(f"[Trang {i+1}]: {txt.strip()}")
+            
             full_text = "\n".join(text_pages)
-            return full_text if full_text.strip() else "Không thể trích xuất chữ từ PDF (Có thể là file ảnh quét)."
+            
+            # Nếu PDF chọn được chữ bình thường
+            if full_text.strip():
+                return full_text
+            
+            # Nếu PDF là dạng ảnh quét (Scanned) -> Trả về thông báo dùng Vision AI
+            return "PDF_IS_SCANNED_IMAGE"
         except Exception as e:
             return f"Lỗi khi đọc file PDF: {str(e)}"
 
@@ -67,8 +74,8 @@ class AIEngine:
         except Exception as e:
             return f"Lỗi khi đọc file Excel: {str(e)}"
 
-    # 4. Phân tích Hình Ảnh
-    def analyze_image(self, file_bytes, prompt="Hãy đọc và trích xuất toàn bộ văn bản/nội dung có trong hình ảnh này."):
+    # 4. Phân tích Hình Ảnh / Trang PDF dạng ảnh qua Vision AI OCR
+    def analyze_image(self, file_bytes, prompt="Hãy đọc, trích xuất và liệt kê toàn bộ chữ viết, từ vựng có trong hình ảnh/trang tài liệu này."):
         if not self.client:
             return "Chưa cấu hình GROQ_API_KEY."
         
@@ -91,14 +98,14 @@ class AIEngine:
                     }
                 ],
                 temperature=0.2,
-                max_tokens=1024
+                max_tokens=2048
             )
             return response.choices[0].message.content.strip()
         except Exception as e:
-            return f"Lỗi xử lý hình ảnh: {str(e)}"
+            return f"Lỗi xử lý Vision OCR: {str(e)}"
 
-    # 5. Hàm Chat chuẩn hóa Lịch sử tin nhắn trước khi gửi lên API
-    def chat_with_memory(self, messages_history):
+    # 5. Hàm Chat giữ trí nhớ lịch sử chuẩn API
+    def chat_with_memory(self, clean_messages_history):
         if not self.client:
             return "Chưa tìm thấy API Key. Hãy điền GROQ_API_KEY vào mục Settings -> Secrets trên Streamlit Cloud."
 
@@ -107,24 +114,18 @@ class AIEngine:
                 "role": "system",
                 "content": (
                     "Bạn là một Trợ lý AI giáo dục thông minh và chu đáo. "
-                    "Hãy luôn ghi nhớ toàn bộ nội dung các tệp đính kèm (PDF, Word, Excel, Ảnh) "
-                    "và lịch sử các câu hỏi trước đó của người dùng để trả lời chính xác, đầy đủ nhất."
+                    "Hãy luôn ghi nhớ toàn bộ nội dung các tệp đính kèm (sách giáo khoa, PDF, Word, Excel, Ảnh) "
+                    "và lịch sử các câu hỏi trước đó của người dùng để trả lời chính xác, giải thích từ vựng HSK/tiếng Trung chu đáo."
                 )
             }
             
-            # LỌC SẠCH: CHỈ GIỮ LẠI 'ROLE' VÀ 'CONTENT' ĐỂ GỬI CHO GROQ API
-            api_messages = [system_instruction]
-            for m in messages_history:
-                api_messages.append({
-                    "role": m["role"],
-                    "content": m["content"]
-                })
+            api_messages = [system_instruction] + clean_messages_history
 
             response = self.client.chat.completions.create(
                 messages=api_messages,
                 model=self.text_model,
                 temperature=0.3,
-                max_tokens=3000
+                max_tokens=3500
             )
             return response.choices[0].message.content.strip()
         except Exception as e:
