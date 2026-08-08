@@ -10,24 +10,20 @@ st.set_page_config(
     layout="wide"
 )
 
-# 2. Khởi tạo Engine
-@st.cache_resource
-def tai_mo_hinh_ai():
-    return AIEngine()
-
-mo_hinh_ai = tai_mo_hinh_ai()
+# 2. Khởi tạo Engine (Không dùng cache để đảm bảo nhận code mới dứt điểm)
+mo_hinh_ai = AIEngine()
 db_status = getattr(mo_hinh_ai, "db_status", "CHƯA_KẾT_NỐI")
 
-# Khởi tạo phiên làm việc người dùng
+# Khởi tạo phiên đăng nhập người dùng
 if "user" not in st.session_state:
     st.session_state.user = None
 
 # =====================================================================
-# MÀN HÌNH ĐĂNG KIỂM / ĐĂNG NHẬP (BẮT BUỘC ĐĂNG NHẬP MỚI VÀO ĐƯỢC CHAT)
+# GIAO DIỆN ĐĂNG KIỂM / ĐĂNG NHẬP BẢO MẬT
 # =====================================================================
 if st.session_state.user is None:
     st.title("🧠 NEXUS AI - Hệ Thống Trí Tuệ Nhóm")
-    st.caption("Vui lòng Đăng nhập hoặc Đăng ký tài khoản để bảo mật lịch sử chat của bạn.")
+    st.caption("Vui lòng Đăng nhập hoặc Đăng ký tài khoản để bảo mật dữ liệu chat của bạn.")
     st.write("---")
 
     tab_login, tab_register = st.tabs(["🔒 Đăng Nhập", "📝 Đăng ký Tài Khoản Mới"])
@@ -70,17 +66,17 @@ if st.session_state.user is None:
                 else:
                     st.error(msg)
 
-    st.stop() # Dừng chương trình tại đây nếu chưa đăng nhập thành công
+    st.stop()
 
 # =====================================================================
-# MÀN HÌNH CHÍNH (ĐÃ ĐĂNG NHẬP THÀNH CÔNG - LƯU CHAT CÁ NHÂN RIÊNG BIỆT)
+# GIAO DIỆN CHÁT BẢO MẬT (ĐÃ XÁC THỰC TÀI KHOẢN SUCCESS)
 # =====================================================================
 current_user_id = st.session_state.user["id"]
 current_user_name = st.session_state.user["full_name"]
 
-# Load Lịch sử trò chuyện RIÊNG của người dùng này
+# Tải Lịch sử chat cá nhân độc lập
 if "chats" not in st.session_state or getattr(st.session_state, "loaded_user_id", None) != current_user_id:
-    db_chats = mo_hinh_ai.load_user_chats(current_user_id) if hasattr(mo_hinh_ai, "load_user_chats") else {}
+    db_chats = mo_hinh_ai.load_user_chats(current_user_id)
     st.session_state.loaded_user_id = current_user_id
     
     if db_chats:
@@ -89,7 +85,7 @@ if "chats" not in st.session_state or getattr(st.session_state, "loaded_user_id"
     else:
         init_id = str(uuid.uuid4())
         default_title = "Cuộc trò chuyện mới"
-        init_msg = f"Xin chào **{current_user_name}**! Lịch sử chat của bạn đã được mã hóa bảo mật riêng biệt. Không ai khác có thể xem được nội dung này."
+        init_msg = f"Xin chào **{current_user_name}**! Lịch sử chat của bạn đã được mã hóa bảo mật riêng biệt trên Database. Không ai khác có thể xem được nội dung này."
         st.session_state.chats = {
             default_title: {
                 "id": init_id,
@@ -99,7 +95,7 @@ if "chats" not in st.session_state or getattr(st.session_state, "loaded_user_id"
             }
         }
         st.session_state.current_chat = default_title
-        if db_status == "ĐÃ_KẾT_NỐI" and hasattr(mo_hinh_ai, "save_chat_node"):
+        if db_status == "ĐÃ_KẾT_NỐI":
             mo_hinh_ai.save_chat_node(init_id, default_title, current_user_id)
             mo_hinh_ai.save_message(init_id, "assistant", init_msg, init_msg)
 
@@ -128,9 +124,8 @@ with st.sidebar:
         }
         st.session_state.current_chat = new_title
         
-        if hasattr(mo_hinh_ai, "save_chat_node"):
-            mo_hinh_ai.save_chat_node(new_id, new_title, current_user_id)
-            mo_hinh_ai.save_message(new_id, "assistant", init_msg, init_msg)
+        mo_hinh_ai.save_chat_node(new_id, new_title, current_user_id)
+        mo_hinh_ai.save_message(new_id, "assistant", init_msg, init_msg)
         st.rerun()
 
     chat_list = list(st.session_state.chats.keys())
@@ -156,8 +151,7 @@ with st.sidebar:
             if new_title_input.strip() and new_title_input != st.session_state.current_chat:
                 st.session_state.chats[new_title_input] = st.session_state.chats.pop(st.session_state.current_chat)
                 st.session_state.current_chat = new_title_input
-                if hasattr(mo_hinh_ai, "update_chat_title"):
-                    mo_hinh_ai.update_chat_title(current_id, new_title_input)
+                mo_hinh_ai.update_chat_title(current_id, new_title_input)
                 st.rerun()
 
         # Nút Xuất File Word
@@ -175,8 +169,7 @@ with st.sidebar:
                 
         if st.button("🗑️ Xóa phiên chat này", use_container_width=True):
             if len(st.session_state.chats) > 1:
-                if hasattr(mo_hinh_ai, "delete_chat"):
-                    mo_hinh_ai.delete_chat(current_id)
+                mo_hinh_ai.delete_chat(current_id)
                 del st.session_state.chats[st.session_state.current_chat]
                 st.session_state.current_chat = list(st.session_state.chats.keys())[0]
                 st.rerun()
@@ -254,8 +247,7 @@ if user_input := st.chat_input("Nhập câu hỏi hoặc gửi tệp đính kèm
 
     # Lưu RAM & DB
     active_messages.append({"role": "user", "content": full_api_prompt, "display_content": display_prompt})
-    if hasattr(mo_hinh_ai, "save_message"):
-        mo_hinh_ai.save_message(active_id, "user", full_api_prompt, display_prompt)
+    mo_hinh_ai.save_message(active_id, "user", full_api_prompt, display_prompt)
 
     # Đặt tên tự động nếu là câu hỏi đầu tiên
     user_msg_count = sum(1 for m in active_messages if m["role"] == "user")
@@ -264,8 +256,7 @@ if user_input := st.chat_input("Nhập câu hỏi hoặc gửi tệp đính kèm
         if new_auto_title and new_auto_title != st.session_state.current_chat:
             st.session_state.chats[new_auto_title] = st.session_state.chats.pop(st.session_state.current_chat)
             st.session_state.current_chat = new_auto_title
-            if hasattr(mo_hinh_ai, "update_chat_title"):
-                mo_hinh_ai.update_chat_title(active_id, new_auto_title)
+            mo_hinh_ai.update_chat_title(active_id, new_auto_title)
 
     clean_history_for_api = [{"role": m["role"], "content": m["content"]} for m in active_messages]
 
@@ -276,5 +267,4 @@ if user_input := st.chat_input("Nhập câu hỏi hoặc gửi tệp đính kèm
 
     # Lưu RAM & DB
     active_messages.append({"role": "assistant", "content": phan_hoi_ai, "display_content": phan_hoi_ai})
-    if hasattr(mo_hinh_ai, "save_message"):
-        mo_hinh_ai.save_message(active_id, "assistant", phan_hoi_ai, phan_hoi_ai)
+    mo_hinh_ai.save_message(active_id, "assistant", phan_hoi_ai, phan_hoi_ai)
