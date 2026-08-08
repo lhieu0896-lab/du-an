@@ -18,16 +18,78 @@ def tai_mo_hinh_ai():
 mo_hinh_ai = tai_mo_hinh_ai()
 db_status = getattr(mo_hinh_ai, "db_status", "CHƯA_KẾT_NỐI")
 
-# 3. Đồng bộ Lịch sử từ Database
-if "chats" not in st.session_state or not st.session_state.chats:
-    db_chats = mo_hinh_ai.load_all_chats() if hasattr(mo_hinh_ai, "load_all_chats") else {}
+# Khởi tạo phiên làm việc người dùng
+if "user" not in st.session_state:
+    st.session_state.user = None
+
+# =====================================================================
+# MÀN HÌNH ĐĂNG KIỂM / ĐĂNG NHẬP (BẮT BUỘC ĐĂNG NHẬP MỚI VÀO ĐƯỢC CHAT)
+# =====================================================================
+if st.session_state.user is None:
+    st.title("🧠 NEXUS AI - Hệ Thống Trí Tuệ Nhóm")
+    st.caption("Vui lòng Đăng nhập hoặc Đăng ký tài khoản để bảo mật lịch sử chat của bạn.")
+    st.write("---")
+
+    tab_login, tab_register = st.tabs(["🔒 Đăng Nhập", "📝 Đăng ký Tài Khoản Mới"])
+
+    # TAB ĐĂNG NHẬP
+    with tab_login:
+        st.subheader("Đăng nhập tài khoản")
+        login_username = st.text_input("Tên tài khoản (Username):", key="login_user")
+        login_password = st.text_input("Mật khẩu:", type="password", key="login_pass")
+        
+        if st.button("🚀 Đăng Nhập", type="primary", use_container_width=True):
+            if login_username and login_password:
+                user_info, msg = mo_hinh_ai.authenticate_user(login_username, login_password)
+                if user_info:
+                    st.session_state.user = user_info
+                    st.success(f"Xin chào {user_info['full_name']}! Đang tải dữ liệu...")
+                    st.rerun()
+                else:
+                    st.error(msg)
+            else:
+                st.warning("Vui lòng nhập đầy đủ Tên tài khoản và Mật khẩu!")
+
+    # TAB ĐĂNG KÝ
+    with tab_register:
+        st.subheader("Tạo tài khoản mới")
+        reg_fullname = st.text_input("Họ và Tên đầy đủ:", key="reg_name")
+        reg_username = st.text_input("Tên tài khoản (Viết liền không dấu):", key="reg_user")
+        reg_password = st.text_input("Mật khẩu:", type="password", key="reg_pass")
+        reg_confirm = st.text_input("Xác nhận Mật khẩu:", type="password", key="reg_confirm")
+
+        if st.button("✨ Tạo Tài Khoản", use_container_width=True):
+            if not reg_fullname or not reg_username or not reg_password:
+                st.warning("Vui lòng điền đầy đủ các thông tin!")
+            elif reg_password != reg_confirm:
+                st.error("Mật khẩu xác nhận không khớp!")
+            else:
+                success, msg = mo_hinh_ai.register_user(reg_fullname, reg_username, reg_password)
+                if success:
+                    st.success(msg + " Hãy chuyển sang tab 'Đăng Nhập' để bắt đầu.")
+                else:
+                    st.error(msg)
+
+    st.stop() # Dừng chương trình tại đây nếu chưa đăng nhập thành công
+
+# =====================================================================
+# MÀN HÌNH CHÍNH (ĐÃ ĐĂNG NHẬP THÀNH CÔNG - LƯU CHAT CÁ NHÂN RIÊNG BIỆT)
+# =====================================================================
+current_user_id = st.session_state.user["id"]
+current_user_name = st.session_state.user["full_name"]
+
+# Load Lịch sử trò chuyện RIÊNG của người dùng này
+if "chats" not in st.session_state or getattr(st.session_state, "loaded_user_id", None) != current_user_id:
+    db_chats = mo_hinh_ai.load_user_chats(current_user_id) if hasattr(mo_hinh_ai, "load_user_chats") else {}
+    st.session_state.loaded_user_id = current_user_id
+    
     if db_chats:
         st.session_state.chats = db_chats
         st.session_state.current_chat = list(db_chats.keys())[0]
     else:
         init_id = str(uuid.uuid4())
         default_title = "Cuộc trò chuyện mới"
-        init_msg = "Chào mừng bạn đến với **NEXUS AI**! Hệ thống hỗ trợ tra cứu Web real-time, phân tích tệp đa định dạng và lưu trữ vĩnh viễn trên Database."
+        init_msg = f"Xin chào **{current_user_name}**! Lịch sử chat của bạn đã được mã hóa bảo mật riêng biệt. Không ai khác có thể xem được nội dung này."
         st.session_state.chats = {
             default_title: {
                 "id": init_id,
@@ -38,19 +100,19 @@ if "chats" not in st.session_state or not st.session_state.chats:
         }
         st.session_state.current_chat = default_title
         if db_status == "ĐÃ_KẾT_NỐI" and hasattr(mo_hinh_ai, "save_chat_node"):
-            mo_hinh_ai.save_chat_node(init_id, default_title)
+            mo_hinh_ai.save_chat_node(init_id, default_title, current_user_id)
             mo_hinh_ai.save_message(init_id, "assistant", init_msg, init_msg)
 
 # 4. Thanh Sidebar
 with st.sidebar:
     st.title("🧠 NEXUS AI")
-    st.caption("Hệ Thống Trí Tuệ Nhóm v2.0")
+    st.caption(f"👤 Tài khoản: **{current_user_name}**")
     
-    if db_status == "ĐÃ_KẾT_NỐI":
-        st.success("🟢 Supabase: Đã kết nối")
-    else:
-        st.error(f"🔴 Database: {db_status}")
-    
+    if st.button("🚪 Đăng xuất", use_container_width=True):
+        st.session_state.user = None
+        st.session_state.chats = {}
+        st.rerun()
+        
     st.write("---")
     enable_web_search = st.toggle("🌐 Bật Tra Cứu Web Real-time", value=True)
     st.write("---")
@@ -58,7 +120,7 @@ with st.sidebar:
     if st.button("➕ Tạo phiên chat mới", use_container_width=True, type="primary"):
         new_id = str(uuid.uuid4())
         new_title = f"Cuộc trò chuyện {len(st.session_state.chats) + 1}"
-        init_msg = "Phiên trò chuyện mới đã khởi tạo thành công!"
+        init_msg = "Phiên trò chuyện cá nhân mới đã được khởi tạo thành công!"
         
         st.session_state.chats[new_title] = {
             "id": new_id,
@@ -67,7 +129,7 @@ with st.sidebar:
         st.session_state.current_chat = new_title
         
         if hasattr(mo_hinh_ai, "save_chat_node"):
-            mo_hinh_ai.save_chat_node(new_id, new_title)
+            mo_hinh_ai.save_chat_node(new_id, new_title, current_user_id)
             mo_hinh_ai.save_message(new_id, "assistant", init_msg, init_msg)
         st.rerun()
 
@@ -76,7 +138,7 @@ with st.sidebar:
         st.session_state.current_chat = chat_list[0]
         
     selected_chat = st.radio(
-        "Lịch sử các phiên chat:", 
+        "Lịch sử chat cá nhân:", 
         chat_list, 
         index=chat_list.index(st.session_state.current_chat) if st.session_state.current_chat in chat_list else 0
     )
@@ -128,7 +190,7 @@ with st.sidebar:
 
 # 5. Màn hình chính
 st.title("🧠 NEXUS AI - Trợ Lý Trí Tuệ")
-st.caption(f"Phiên làm việc: **{st.session_state.current_chat}** | Động cơ: **Groq Llama 3.3 70B**")
+st.caption(f"Phiên làm việc: **{st.session_state.current_chat}** | Người dùng: **{current_user_name}**")
 
 # Hiển thị lịch sử tin nhắn
 active_chat_data = st.session_state.chats[st.session_state.current_chat]
@@ -141,7 +203,7 @@ for message in active_messages:
         st.markdown(display_text)
 
 # 6. Xử lý nhắn tin
-if user_input := st.chat_input("Nhập câu hỏi hoặc gửi tệp đính kèm cho NEXUS AI..."):
+if user_input := st.chat_input("Nhập câu hỏi hoặc gửi tệp đính kèm..."):
     extracted_text_from_file = ""
     display_file_note = ""
 
