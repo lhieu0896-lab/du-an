@@ -8,7 +8,165 @@ from ai_engine import AIEngine
 st.set_page_config(
     page_title="Bộ Công Cụ Xử Lý Văn Bản & Trợ Lý Học Tập AI", 
     page_icon="⚡",
-    layout="wide"# 6. Hàm kiểm tra văn bản để tự chuyển 15 Theme chuẩn xác 100%
+    layout="wide"
+)
+
+# 2. Lưu mô hình AI vào bộ nhớ đệm RAM
+@st.cache_resource
+def tai_mo_hinh_ai():
+    return AIEngine()
+
+def doc_file_pdf(tep_tin):
+    trich_xuat = PdfReader(tep_tin)
+    return "\n".join([trang.extract_text() for trang in trich_xuat.pages if trang.extract_text()])
+
+def doc_file_word(tep_tin):
+    tai_lieu = docx.Document(tep_tin)
+    return "\n".join([doan_van.text for doan_van in tai_lieu.paragraphs if doan_van.text.strip()])
+
+# Khởi tạo mô hình AI
+mo_hinh_ai = tai_mo_hinh_ai()
+
+# 3. Thanh Menu cố định bên trái
+with st.sidebar:
+    try: 
+        st.image("logo.png", width=120)
+    except: 
+        st.title("🛡️ NCKH")
+    st.markdown("### **Hệ Thống Đa Công Cụ AI**")
+    st.write("📌 **Dự án:** Xử lý Ngôn ngữ Tự nhiên & Trợ lý Tra cứu Học tập")
+    st.divider()
+
+# 4. Cột Tiêu đề
+cot_logo, cot_tieu_de = st.columns([1, 6])
+with cot_logo:
+    try: 
+        st.image("logo.png", width=90)
+    except: 
+        st.markdown("# ⚡")
+
+with cot_tieu_de:
+    st.markdown('<div class="tieu-de-ung-dung">Bộ Công Cụ Xử Lý Văn Bản & Trợ Lý Học Tập AI</div>', unsafe_allow_html=True)
+    st.caption("Tóm tắt, Phân loại, NER, Sắc thái & Trợ lý Tra cứu Học tập Tự động")
+
+# 5. Hàm kích hoạt Theme chuẩn tương phản cao + Icon Tĩnh & Hiệu ứng sinh động
+def kich_hoat_theme(bg_color, accent_color, text_color, icons_list, static_banner_html, toast_msg, toast_icon):
+    items_html = "".join([f'<div class="item-bay">{icon}</div>' for icon in icons_list])
+    
+    css_code = f"""
+        <style>
+        * {{
+            transition: background-color 0.6s ease-in-out, color 0.6s ease-in-out !important;
+        }}
+        
+        .icon-bay-container {{ 
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; 
+            pointer-events: none; z-index: 9999; overflow: hidden; 
+        }}
+        .item-bay {{ 
+            position: absolute; bottom: -60px; font-size: 2.2rem; 
+            animation: bayUp 7s linear infinite; opacity: 0.85; 
+            filter: drop-shadow(0px 2px 6px rgba(0,0,0,0.3));
+        }}
+        .item-bay:nth-child(1) {{ left: 8%; animation-delay: 0s; }}
+        .item-bay:nth-child(2) {{ left: 28%; animation-delay: 1.5s; }}
+        .item-bay:nth-child(3) {{ left: 48%; animation-delay: 3s; }}
+        .item-bay:nth-child(4) {{ left: 68%; animation-delay: 0.8s; }}
+        .item-bay:nth-child(5) {{ left: 88%; animation-delay: 2.3s; }}
+        
+        @keyframes bayUp {{
+            0% {{ transform: translateY(0) rotate(0deg) scale(0.8); opacity: 0.2; }}
+            20% {{ opacity: 0.9; }}
+            80% {{ opacity: 0.9; }}
+            100% {{ transform: translateY(-120vh) rotate(360deg) scale(1.2); opacity: 0; }}
+        }}
+        
+        @keyframes popUpAnimation {{
+            0% {{ transform: scale(0.85) translateY(30px); opacity: 0; }}
+            70% {{ transform: scale(1.03) translateY(-5px); opacity: 1; }}
+            100% {{ transform: scale(1) translateY(0); opacity: 1; }}
+        }}
+        
+        .theme-banner-box {{
+            animation: popUpAnimation 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            background: rgba(255, 255, 255, 0.95);
+            border: 3px solid {accent_color};
+            border-radius: 20px;
+            padding: 18px 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.25);
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }}
+        
+        .theme-banner-icon {{
+            font-size: 3.5rem;
+            filter: drop-shadow(0px 4px 8px rgba(0,0,0,0.2));
+            animation: pulseIcon 2s infinite ease-in-out;
+        }}
+        
+        @keyframes pulseIcon {{
+            0%, 100% {{ transform: scale(1); }}
+            50% {{ transform: scale(1.1); }}
+        }}
+        
+        .theme-banner-title {{
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: #0f172a !important;
+            margin: 0;
+        }}
+        .theme-banner-desc {{
+            font-size: 1rem;
+            color: #475569 !important;
+            margin: 0;
+        }}
+
+        .stApp, [data-testid="stHeader"], [data-testid="stSidebar"], section[data-testid="stSidebar"] > div {{ 
+            background-color: {bg_color} !important; 
+        }}
+        .tieu-de-ung-dung {{ font-size: 2.3rem; font-weight: 800; color: {accent_color} !important; }}
+        
+        .stMarkdown, .stText, p, span, li, h1, h2, h3, h4 {{ 
+            color: {text_color} !important; 
+            font-size: 1.05rem !important;
+            line-height: 1.6 !important;
+        }}
+        
+        div[data-testid="stAlert"] {{
+            animation: popUpAnimation 0.7s ease-out forwards;
+            background-color: #ffffff !important;
+            border: 2px solid {accent_color} !important;
+            border-radius: 14px !important;
+            box-shadow: 0 6px 16px rgba(0,0,0,0.18) !important;
+        }}
+        div[data-testid="stAlert"] * {{
+            color: #0f172a !important;
+            font-size: 1.05rem !important;
+            font-weight: 500 !important;
+        }}
+        
+        div[data-testid="stMetric"], .stTextArea textarea, div[data-testid="stFileUploader"], div[data-baseweb="select"], div[data-baseweb="input"] {{ 
+            background-color: #ffffff !important; border: 2px solid {accent_color} !important; 
+            color: #0f172a !important; border-radius: 16px !important;
+        }}
+        div.stButton > button {{ 
+            background-color: {accent_color} !important; color: #0f172a !important; 
+            font-weight: 800 !important; border-radius: 24px !important; border: none !important;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2) !important;
+        }}
+        </style>
+        
+        <div class="icon-bay-container">
+            {items_html}
+        </div>
+    """
+    st.markdown(css_code, unsafe_allow_html=True)
+    st.markdown(static_banner_html, unsafe_allow_html=True)
+    st.toast(toast_msg, icon=toast_icon)
+
+# 6. Hàm kiểm tra văn bản để tự chuyển 15 Theme chuẩn xác 100%
 def tu_dong_chuyen_theme(van_ban_phan_tich):
     text_check = van_ban_phan_tich.lower()
     
@@ -206,261 +364,6 @@ def tu_dong_chuyen_theme(van_ban_phan_tich):
         </div>
         """
         kich_hoat_theme("#450a0a", "#f87171", "#ffffff", ["🎮", "🎬", "🕹️", "🍿", "🎧"], banner, "Kích hoạt Theme Giải trí & Gaming!", "🎮")
-)
-
-# 2. Lưu mô hình AI vào bộ nhớ đệm RAM
-@st.cache_resource
-def tai_mo_hinh_ai():
-    return AIEngine()
-
-def doc_file_pdf(tep_tin):
-    trich_xuat = PdfReader(tep_tin)
-    return "\n".join([trang.extract_text() for trang in trich_xuat.pages if trang.extract_text()])
-
-def doc_file_word(tep_tin):
-    tai_lieu = docx.Document(tep_tin)
-    return "\n".join([doan_van.text for doan_van in tai_lieu.paragraphs if doan_van.text.strip()])
-
-# Khởi tạo mô hình AI
-mo_hinh_ai = tai_mo_hinh_ai()
-
-# 3. Thanh Menu cố định bên trái
-with st.sidebar:
-    try: 
-        st.image("logo.png", width=120)
-    except: 
-        st.title("🛡️ NCKH")
-    st.markdown("### **Hệ Thống Đa Công Cụ AI**")
-    st.write("📌 **Dự án:** Xử lý Ngôn ngữ Tự nhiên & Trợ lý Tra cứu Học tập")
-    st.divider()
-
-# 4. Cột Tiêu đề
-cot_logo, cot_tieu_de = st.columns([1, 6])
-with cot_logo:
-    try: 
-        st.image("logo.png", width=90)
-    except: 
-        st.markdown("# ⚡")
-
-with cot_tieu_de:
-    st.markdown('<div class="tieu-de-ung-dung">Bộ Công Cụ Xử Lý Văn Bản & Trợ Lý Học Tập AI</div>', unsafe_allow_html=True)
-    st.caption("Tóm tắt, Phân loại, NER, Sắc thái & Trợ lý Tra cứu Học tập Tự động")
-
-# 5. Hàm kích hoạt Theme chuẩn tương phản cao + Icon Tĩnh & Hiệu ứng sinh động
-def kich_hoat_theme(bg_color, accent_color, text_color, icons_list, static_banner_html, toast_msg, toast_icon):
-    items_html = "".join([f'<div class="item-bay">{icon}</div>' for icon in icons_list])
-    
-    css_code = f"""
-        <style>
-        * {{
-            transition: background-color 0.6s ease-in-out, color 0.6s ease-in-out !important;
-        }}
-        
-        /* Hiệu ứng bay hiệu ứng nền */
-        .icon-bay-container {{ 
-            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; 
-            pointer-events: none; z-index: 9999; overflow: hidden; 
-        }}
-        .item-bay {{ 
-            position: absolute; bottom: -60px; font-size: 2.2rem; 
-            animation: bayUp 7s linear infinite; opacity: 0.85; 
-            filter: drop-shadow(0px 2px 6px rgba(0,0,0,0.3));
-        }}
-        .item-bay:nth-child(1) {{ left: 8%; animation-delay: 0s; }}
-        .item-bay:nth-child(2) {{ left: 28%; animation-delay: 1.5s; }}
-        .item-bay:nth-child(3) {{ left: 48%; animation-delay: 3s; }}
-        .item-bay:nth-child(4) {{ left: 68%; animation-delay: 0.8s; }}
-        .item-bay:nth-child(5) {{ left: 88%; animation-delay: 2.3s; }}
-        
-        @keyframes bayUp {{
-            0% {{ transform: translateY(0) rotate(0deg) scale(0.8); opacity: 0.2; }}
-            20% {{ opacity: 0.9; }}
-            80% {{ opacity: 0.9; }}
-            100% {{ transform: translateY(-120vh) rotate(360deg) scale(1.2); opacity: 0; }}
-        }}
-        
-        /* HIỆU ỨNG XUẤT HIỆN SINH ĐỘNG (POP-UP & BOUNCE) CHO KHUNG NỘI DUNG */
-        @keyframes popUpAnimation {{
-            0% {{ transform: scale(0.85) translateY(30px); opacity: 0; }}
-            70% {{ transform: scale(1.03) translateY(-5px); opacity: 1; }}
-            100% {{ transform: scale(1) translateY(0); opacity: 1; }}
-        }}
-        
-        .theme-banner-box {{
-            animation: popUpAnimation 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-            background: rgba(255, 255, 255, 0.95);
-            border: 3px solid {accent_color};
-            border-radius: 20px;
-            padding: 18px 25px;
-            margin-bottom: 20px;
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.25);
-            display: flex;
-            align-items: center;
-            gap: 20px;
-        }}
-        
-        .theme-banner-icon {{
-            font-size: 3.5rem;
-            filter: drop-shadow(0px 4px 8px rgba(0,0,0,0.2));
-            animation: pulseIcon 2s infinite ease-in-out;
-        }}
-        
-        @keyframes pulseIcon {{
-            0%, 100% {{ transform: scale(1); }}
-            50% {{ transform: scale(1.1); }}
-        }}
-        
-        .theme-banner-title {{
-            font-size: 1.5rem;
-            font-weight: 800;
-            color: #0f172a !important;
-            margin: 0;
-        }}
-        .theme-banner-desc {{
-            font-size: 1rem;
-            color: #475569 !important;
-            margin: 0;
-        }}
-
-        .stApp, [data-testid="stHeader"], [data-testid="stSidebar"], section[data-testid="stSidebar"] > div {{ 
-            background-color: {bg_color} !important; 
-        }}
-        .tieu-de-ung-dung {{ font-size: 2.3rem; font-weight: 800; color: {accent_color} !important; }}
-        
-        /* ĐẢM BẢO CHỮ RÕ NÉT CĂNG NỀN TRẮNG */
-        .stMarkdown, .stText, p, span, li, h1, h2, h3, h4 {{ 
-            color: {text_color} !important; 
-            font-size: 1.05rem !important;
-            line-height: 1.6 !important;
-        }}
-        
-        /* KHUNG HIỂN THỊ KẾT QUẢ VỚI HIỆU ỨNG TƯƠNG PHẢN CAO */
-        div[data-testid="stAlert"] {{
-            animation: popUpAnimation 0.7s ease-out forwards;
-            background-color: #ffffff !important;
-            border: 2px solid {accent_color} !important;
-            border-radius: 14px !important;
-            box-shadow: 0 6px 16px rgba(0,0,0,0.18) !important;
-        }}
-        div[data-testid="stAlert"] * {{
-            color: #0f172a !important;
-            font-size: 1.05rem !important;
-            font-weight: 500 !important;
-        }}
-        
-        div[data-testid="stMetric"], .stTextArea textarea, div[data-testid="stFileUploader"], div[data-baseweb="select"], div[data-baseweb="input"] {{ 
-            background-color: #ffffff !important; border: 2px solid {accent_color} !important; 
-            color: #0f172a !important; border-radius: 16px !important;
-        }}
-        div.stButton > button {{ 
-            background-color: {accent_color} !important; color: #0f172a !important; 
-            font-weight: 800 !important; border-radius: 24px !important; border: none !important;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.2) !important;
-        }}
-        </style>
-        
-        <div class="icon-bay-container">
-            {items_html}
-        </div>
-    """
-    st.markdown(css_code, unsafe_allow_html=True)
-    st.markdown(static_banner_html, unsafe_allow_html=True)
-    st.toast(toast_msg, icon=toast_icon)
-
-# 6. Hàm kiểm tra văn bản (AI trả lời xong) để tự chuyển Theme chuẩn xác 100%
-def tu_dong_chuyen_theme(van_ban_phan_tich):
-    text_check = van_ban_phan_tich.lower()
-    
-    # 1. SINH HỌC (Lọc chính xác từ chuyên ngành)
-    if any(tk in text_check for tk in ["quang hợp", "sinh học", "sinh vật", "tế bào", "adn", "arn", "gen", "di truyền", "thực vật", "động vật", "sinh thái", "lục lạp", "diệp lục"]):
-        banner = """
-        <div class="theme-banner-box">
-            <div class="theme-banner-icon">🧬🌿</div>
-            <div>
-                <div class="theme-banner-title">Chủ Đề: Sinh Học & Hệ Sinh Thái</div>
-                <div class="theme-banner-desc">Mã gen di truyền ADN, cấu trúc tế bào sống, quang hợp và sự tiến hóa của sinh giới.</div>
-            </div>
-        </div>
-        """
-        kich_hoat_theme("#14532d", "#86efac", "#ffffff", ["🧬", "🌿", "🌱", "🍃", "🧬"], banner, "Kích hoạt Theme Sinh học!", "🧬")
-
-    # 2. HÓA HỌC
-    elif any(tk in text_check for tk in ["hóa học", "phản ứng hóa học", "axit", "bazơ", "nguyên tố hóa học", "mol", "kết tủa", "oxi hóa", "electron"]):
-        banner = """
-        <div class="theme-banner-box">
-            <div class="theme-banner-icon">🧪🔬</div>
-            <div>
-                <div class="theme-banner-title">Chủ Đề: Hóa Học & Phản Ứng Nguyên Tố</div>
-                <div class="theme-banner-desc">Phòng thí nghiệm chưng cất, sự biến đổi chất, liên kết hóa học và bảng tuần hoàn.</div>
-            </div>
-        </div>
-        """
-        kich_hoat_theme("#064e3b", "#34d399", "#ffffff", ["🧪", "🔬", "🫧", "⚗️", "🧪"], banner, "Kích hoạt Theme Hóa học!", "🧪")
-
-    # 3. LỊCH SỬ (Phong cách Bảo tàng Cổ điển)
-    elif any(tk in text_check for tk in ["lịch sử", "30/4", "2/9", "chủ tịch", "nhà nước", "nguyễn phú trọng", "điện biên phủ", "kháng chiến", "chiến tranh", "cách mạng", "triều đại"]):
-        banner = """
-        <div class="theme-banner-box">
-            <div class="theme-banner-icon">🏛️📜🥁</div>
-            <div>
-                <div class="theme-banner-title">Chủ Đề: Lịch Sử Cổ Điển & Bảng Vàng Sử Sách</div>
-                <div class="theme-banner-desc">Hệ thống kích hoạt không gian bảo tàng hoài niệm, trích xuất tư liệu di tích và mốc thời gian lịch sử.</div>
-            </div>
-        </div>
-        """
-        kich_hoat_theme("#2b1b17", "#d97706", "#ffffff", ["🏛️", "📜", "📜", "⏳", "🥁"], banner, "Kích hoạt Theme Lịch sử Cổ điển!", "📜")
-        
-    # 4. TOÁN HỌC
-    elif any(tk in text_check for tk in ["toán học", "đại số", "hình học", "phương trình", "định lý", "pytago", "tích phân", "đạo hàm", "số học", "tam giác"]):
-        banner = """
-        <div class="theme-banner-box">
-            <div class="theme-banner-icon">📐🧮</div>
-            <div>
-                <div class="theme-banner-title">Chủ Đề: Toán Học & Không Gian Số</div>
-                <div class="theme-banner-desc">Bảng đen phấn trắng, các định lý, công thức đại số và mô hình hình học không gian.</div>
-            </div>
-        </div>
-        """
-        kich_hoat_theme("#1b3022", "#a3e635", "#ffffff", ["📐", "🧮", "📏", "♾️", "📐"], banner, "Kích hoạt Theme Toán học!", "📐")
-        
-    # 5. VẬT LÝ
-    elif any(tk in text_check for tk in ["vật lý", "vật lí", "vận tốc", "gia tốc", "chuyển động", "điện trường", "thấu kính", "áp suất", "trọng lực"]):
-        banner = """
-        <div class="theme-banner-box">
-            <div class="theme-banner-icon">👨‍🔬⚛️</div>
-            <div>
-                <div class="theme-banner-title">Chủ Đề: Vật Lý & Cơ Học Vũ Trụ</div>
-                <div class="theme-banner-desc">Mô hình nguyên tử, nhà khoa học nghiên cứu quy luật vận động, lực và thấu kính.</div>
-            </div>
-        </div>
-        """
-        kich_hoat_theme("#0b132b", "#64dfdf", "#ffffff", ["⚡", "⚛️", "💡", "🧲", "⚡"], banner, "Kích hoạt Theme Vật lý!", "⚡")
-        
-    # 6. NGỮ VĂN
-    elif any(tk in text_check for tk in ["ngữ văn", "văn học", "tác phẩm", "thơ", "tiểu thuyết", "truyện", "nghệ thuật văn học", "tác giả"]):
-        banner = """
-        <div class="theme-banner-box">
-            <div class="theme-banner-icon">📜📚</div>
-            <div>
-                <div class="theme-banner-title">Chủ Đề: Ngữ Văn & Tác Phẩm Văn Học</div>
-                <div class="theme-banner-desc">Thư cổ, bút lông, sách kinh điển và phân tích nghệ thuật ngôn từ của các tác giả.</div>
-            </div>
-        </div>
-        """
-        kich_hoat_theme("#451a03", "#fde047", "#ffffff", ["📚", "✍️", "📖", "🍂", "📜"], banner, "Kích hoạt Theme Ngữ văn!", "📚")
-        
-    # 7. ĐỊA LÝ
-    elif any(tk in text_check for tk in ["địa lý", "địa lí", "khí hậu", "địa hình", "bản đồ", "dân số", "thời tiết", "đại dương", "lục địa", "trái đất"]):
-        banner = """
-        <div class="theme-banner-box">
-            <div class="theme-banner-icon">🌍🗺️</div>
-            <div>
-                <div class="theme-banner-title">Chủ Đề: Địa Lý & Quả Địa Cầu</div>
-                <div class="theme-banner-desc">Bản đồ địa hình, khí hậu các châu lục, sự phân bố dân cư và hiện tượng thời tiết.</div>
-            </div>
-        </div>
-        """
-        kich_hoat_theme("#0c4a6e", "#38bdf8", "#ffffff", ["🌍", "☀️", "🗺️", "⛰️", "🌍"], banner, "Kích hoạt Theme Địa lý!", "🌍")
 
 # 7. Tạo Tab giao diện
 the_tab1, the_tab2 = st.tabs(["🚀 Bàn Làm Việc AI", "📊 Đánh Giá Tập Dữ Liệu"])
