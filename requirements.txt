@@ -6,3 +6,4 @@ groq
 tabulate
 supabase
 duckduckgo-search
+bcrypt
