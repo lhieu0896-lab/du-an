@@ -17,7 +17,7 @@ if hasattr(sys.stdout, 'reconfigure'):
 
 class AIEngine:
     def __init__(self):
-        # 1. Khởi tạo Groq API
+        # 1. Khởi tạo Groq API Client
         self.api_key = ""
         try:
             if "GROQ_API_KEY" in st.secrets:
@@ -33,7 +33,7 @@ class AIEngine:
         else:
             self.client = None
 
-        # 2. Khởi tạo Supabase Client
+        # 2. Khởi tạo Supabase Database Client
         self.supabase: Client = None
         self.db_status = "CHƯA_KẾT_NỐI"
         try:
@@ -49,19 +49,17 @@ class AIEngine:
         self.text_model = "llama-3.3-70b-versatile"
         self.vision_model = "llama-3.2-11b-vision-preview"
 
-    # --- HÀM XÁC THỰC BẢO MẬT NGUỜI DÙNG ---
+    # --- HỆ THỐNG ĐĂNG KÝ & ĐĂNG NHẬP BẢO MẬT ---
     def register_user(self, full_name, username, password):
-        """Đăng ký tài khoản người dùng mới"""
+        """Tạo tài khoản người dùng mới và mã hóa mật khẩu"""
         if not self.supabase:
-            return False, "Chưa kết nối Database!"
+            return False, "Chưa kết nối Database Supabase!"
         try:
             username_clean = username.strip().lower()
-            # Kiểm tra xem username đã tồn tại chưa
             res = self.supabase.table("users").select("*").eq("username", username_clean).execute()
             if res.data:
-                return False, "Tên tài khoản này đã được sử dụng!"
+                return False, "Tên tài khoản này đã tồn tại trên hệ thống!"
             
-            # Mã hóa mật khẩu bảo mật bằng bcrypt
             hashed_pw = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
             
             self.supabase.table("users").insert({
@@ -75,9 +73,9 @@ class AIEngine:
             return False, f"Lỗi đăng ký: {str(e)}"
 
     def authenticate_user(self, username, password):
-        """Xác thực đăng nhập tài khoản người dùng"""
+        """Xác thực thông tin đăng nhập của người dùng"""
         if not self.supabase:
-            return None, "Chưa kết nối Database!"
+            return None, "Chưa kết nối Database Supabase!"
         try:
             username_clean = username.strip().lower()
             res = self.supabase.table("users").select("*").eq("username", username_clean).execute()
@@ -87,7 +85,6 @@ class AIEngine:
             user_info = res.data[0]
             stored_hash = user_info["password_hash"].encode('utf-8')
             
-            # Kiểm tra mật khẩu
             if bcrypt.checkpw(password.encode('utf-8'), stored_hash):
                 return user_info, "Đăng nhập thành công!"
             else:
@@ -95,7 +92,7 @@ class AIEngine:
         except Exception as e:
             return None, f"Lỗi đăng nhập: {str(e)}"
 
-    # --- TÌM KIẾM WEB REAL-TIME ---
+    # --- TRA CỨU WEB REAL-TIME ---
     def search_web(self, query, max_results=5):
         try:
             results = []
@@ -122,7 +119,7 @@ class AIEngine:
             return "Cuộc trò chuyện mới"
         try:
             prompt = (
-                f"Hãy tạo một tiêu đề siêu ngắn gọn (từ 3 đến 5 từ) bằng tiếng Việt cho cuộc trò chuyện có câu hỏi đầu tiên là: '{first_user_message}'. "
+                f"Hãy tạo một tiêu đề ngắn gọn (từ 3 đến 5 từ) bằng tiếng Việt cho cuộc trò chuyện có câu hỏi đầu tiên là: '{first_user_message}'. "
                 "Chỉ trả về duy nhất chuỗi tiêu đề, không ghi thêm dấu ngoặc kép hay từ thừa."
             )
             response = self.client.chat.completions.create(
@@ -136,7 +133,7 @@ class AIEngine:
         except Exception:
             return "Cuộc trò chuyện mới"
 
-    # --- TRÍCH XUẤT ĐOẠN TÀI LIỆU DÀI ---
+    # --- TRÍCH XUẤT PHẦN VĂN BẢN TÀI LIỆU DÀI ---
     def retrieve_relevant_chunks(self, full_text, query, chunk_size=1500, top_k=3):
         if len(full_text) <= chunk_size * 2:
             return full_text
@@ -153,7 +150,7 @@ class AIEngine:
         selected_chunks = [item[1] for item in scored_chunks[:top_k]]
         return "\n\n...[Đoạn trích xuất từ tài liệu]...\n\n".join(selected_chunks)
 
-    # --- TẠO FILE WORD ĐỂ TẢI CHAT VỀ MÁY ---
+    # --- XUẤT ĐOẠN CHAT RA FILE WORD ---
     def export_chat_to_word(self, messages, chat_title):
         doc = docx.Document()
         doc.add_heading(f"BÁO CÁO TRÒ CHUYỆN: {chat_title}", level=1)
@@ -172,9 +169,8 @@ class AIEngine:
         target_stream.seek(0)
         return target_stream
 
-    # --- SUPABASE DATABASE (ĐÃ PHÂN QUYỀN RIÊNG BIỆT THEO USER_ID) ---
+    # --- XỬ LÝ SUPABASE DATABASE RIÊNG BIỆT CHO TỪNG USER_ID ---
     def load_user_chats(self, user_id):
-        """LƯU Ý QUAN TRỌNG: Chỉ load đúng danh sách chat thuộc về user_id này"""
         if not self.supabase:
             return {}
         try:
@@ -232,7 +228,7 @@ class AIEngine:
             except Exception as e:
                 print(f"Lỗi update title: {e}")
 
-    # --- ĐỌC TỆP ---
+    # --- ĐỌC TỆP ĐA ĐỊNH DẠNG ---
     def extract_pdf(self, file_bytes):
         try:
             reader = PdfReader(file_bytes)
@@ -287,7 +283,7 @@ class AIEngine:
         except Exception as e:
             return f"Lỗi Vision AI: {str(e)}"
 
-    # --- CHAT STREAMING ---
+    # --- CHAT STREAMING KỶ LUẬT ĐỘ CHÍNH XÁC CAO ---
     def chat_stream(self, clean_messages_history, web_search_context=""):
         if not self.client:
             yield "Chưa tìm thấy API Key Groq."
@@ -312,7 +308,7 @@ class AIEngine:
             response_stream = self.client.chat.completions.create(
                 messages=api_messages,
                 model=self.text_model,
-                temperature=0.0, # Ép Temperature = 0 để đạt độ chính xác tối đa
+                temperature=0.0,
                 max_tokens=4000,
                 stream=True
             )
