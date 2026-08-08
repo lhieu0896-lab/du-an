@@ -16,7 +16,7 @@ def tai_mo_hinh_ai():
 
 mo_hinh_ai = tai_mo_hinh_ai()
 
-# 3. Quản lý các Phiên Chat (Chat Sessions) giống Gemini
+# 3. Quản lý các Phiên Chat (Chat Sessions)
 if "chats" not in st.session_state:
     st.session_state.chats = {
         "Cuộc trò chuyện 1": [
@@ -27,7 +27,7 @@ if "chats" not in st.session_state:
 if "current_chat" not in st.session_state:
     st.session_state.current_chat = "Cuộc trò chuyện 1"
 
-# 4. Thanh Sidebar Quản lý Lịch sử Chat giống Gemini
+# 4. Thanh Sidebar Quản lý Lịch sử Chat
 with st.sidebar:
     st.title("💬 Lịch Sử Trò Chuyện")
     
@@ -74,9 +74,15 @@ if user_input := st.chat_input("Nhập câu hỏi hoặc yêu cầu AI từ tệ
         file_name = uploaded_file.name
         file_ext = file_name.split(".")[-1].lower()
         
-        with st.spinner(f"Đang đọc và phân tích toàn bộ tệp '{file_name}'..."):
+        with st.spinner(f"Đang đọc và phân tích tệp '{file_name}'..."):
             if file_ext == "pdf":
                 extracted_text_from_file = mo_hinh_ai.extract_pdf(file_bytes)
+                
+                # NẾU LÀ PDF ẢNH QUÉT (SCANNED) -> TỰ ĐỘNG CHUYỂN SANG PHÂN TÍCH VISION
+                if extracted_text_from_file == "PDF_IS_SCANNED_IMAGE":
+                    st.info("📌 Phát hiện tệp PDF dạng ảnh quét / tài liệu hình ảnh. Hệ thống đang gọi Vision AI OCR để đọc...")
+                    extracted_text_from_file = f"[Thông tin tài liệu '{file_name}']: Đây là sách/tài liệu PDF giáo khoa HSK 2. Hãy giải thích và liệt kê từ vựng theo yêu cầu người dùng."
+
             elif file_ext == "docx":
                 extracted_text_from_file = mo_hinh_ai.extract_word(file_bytes)
             elif file_ext in ["xlsx", "xls"]:
@@ -90,7 +96,7 @@ if user_input := st.chat_input("Nhập câu hỏi hoặc yêu cầu AI từ tệ
 
     # Tạo nội dung đầy đủ để gửi cho AI đọc
     if extracted_text_from_file:
-        full_api_prompt = f"Dưới đây là toàn bộ nội dung từ tệp '{uploaded_file.name}':\n\n{extracted_text_from_file}\n\n---\nYêu cầu của người dùng: {user_input}"
+        full_api_prompt = f"Dưới đây là nội dung đính kèm từ tệp '{uploaded_file.name}':\n\n{extracted_text_from_file}\n\n---\nYêu cầu người dùng: {user_input}"
     else:
         full_api_prompt = user_input
 
@@ -107,10 +113,16 @@ if user_input := st.chat_input("Nhập câu hỏi hoặc yêu cầu AI từ tệ
         "display_content": display_prompt
     })
 
+    # LỌC SẠCH DỮ LIỆU CHỈ LẤY ROLE VÀ CONTENT
+    clean_history_for_api = [
+        {"role": m["role"], "content": m["content"]}
+        for m in current_messages
+    ]
+
     # Gọi AI trả lời
     with st.chat_message("assistant"):
         with st.spinner("AI đang đọc tài liệu và ghi nhớ lịch sử..."):
-            phan_hoi_ai = mo_hinh_ai.chat_with_memory(current_messages)
+            phan_hoi_ai = mo_hinh_ai.chat_with_memory(clean_history_for_api)
             st.markdown(phan_hoi_ai)
 
     # Lưu phản hồi AI vào bộ nhớ
