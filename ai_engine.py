@@ -18,13 +18,19 @@ if hasattr(sys.stdout, 'reconfigure'):
 
 class DongCoAI:
     def __init__(self):
-        # Nạp danh sách các API Key từ Secrets hoặc biến môi trường
+        # Lấy danh sách API Keys từ secrets (Ép kiểu chuẩn chống gạch vàng VS Code)
         self.danh_sach_keys = []
         try:
             if "GROQ_API_KEYS" in st.secrets:
-                self.danh_sach_keys = list(st.secrets["GROQ_API_KEYS"])
+                cac_keys = st.secrets["GROQ_API_KEYS"]
+                if isinstance(cac_keys, (list, tuple)):
+                    self.danh_sach_keys = [str(k).strip() for k in cac_keys if str(k).strip()]
+                else:
+                    self.danh_sach_keys = [str(cac_keys).strip()]
             elif "GROQ_API_KEY" in st.secrets:
-                self.danh_sach_keys = [st.secrets["GROQ_API_KEY"]]
+                key_don = str(st.secrets["GROQ_API_KEY"]).strip()
+                if key_don:
+                    self.danh_sach_keys = [key_don]
         except Exception:
             pass
 
@@ -111,30 +117,10 @@ class DongCoAI:
         except Exception as e:
             return f"Lỗi tìm kiếm web: {str(e)}"
 
-    # --- TỰ ĐỘNG ĐẶT TÊN CHAT (XOAY KEY DỘNG) ---
+    # --- TỰ ĐỘNG ĐẶT TÊN CHAT (AN TOÀN CHỐNG NGHẼN) ---
     def tao_tieu_de_chat(self, cau_hoi_dau_tien):
-        if not self.danh_sach_keys:
-            return "Cuộc trò chuyện mới"
-        
-        yeu_cau = (
-            f"Tạo tiêu đề ngắn gọn (3 đến 5 từ) bằng tiếng Việt cho đoạn chat có câu hỏi đầu tiên: '{cau_hoi_dau_tien}'. "
-            "Chỉ trả về duy nhất chuỗi tiêu đề, không ghi thêm dấu ngoặc kép hay từ thừa."
-        )
-
-        for key in self.danh_sach_keys:
-            try:
-                client_tam = Groq(api_key=key)
-                phan_hoi = client_tam.chat.completions.create(
-                    model=self.mo_hinh_van_ban,
-                    messages=[{"role": "user", "content": yeu_cau}],
-                    temperature=0.3,
-                    max_tokens=20
-                )
-                tieu_de = phan_hoi.choices[0].message.content.strip().replace('"', '')
-                return tieu_de if tieu_de else "Cuộc trò chuyện mới"
-            except Exception:
-                continue
-        return "Cuộc trò chuyện mới"
+        cat_ngan = cau_hoi_dau_tien.strip()[:20]
+        return f"Chat: {cat_ngan}..." if cat_ngan else "Cuộc trò chuyện mới"
 
     # --- BỘ LỌC TÀI LIỆU DÀI (LIGHT RAG) ---
     def trich_xuat_doan_lien_quan(self, van_ban_goc, cau_hoi, kich_thuoc_doan=1500, so_doan_lay=3):
@@ -232,7 +218,7 @@ class DongCoAI:
             except Exception as e:
                 print(f"Lỗi cập nhật tiêu đề: {e}")
 
-    # --- ĐỌC TỆP ĐÍNH KÈM (CÓ HỖ TRỢ FILE TẠO TỪ WPS) ---
+    # --- ĐỌC CÁC TỆP ĐÍNH KÈM ---
     def doc_file_pdf(self, luong_bytes_file):
         try:
             if hasattr(luong_bytes_file, 'seek'):
@@ -253,7 +239,7 @@ class DongCoAI:
             if hasattr(luong_bytes_file, 'seek'):
                 luong_bytes_file.seek(0)
             
-            # Thử đọc bằng docx tiêu chuẩn
+            # Đọc bằng docx tiêu chuẩn
             try:
                 doc_word = docx.Document(luong_bytes_file)
                 danh_sach_doan = [doan.text.strip() for doan in doc_word.paragraphs if doan.text and doan.text.strip()]
@@ -268,7 +254,7 @@ class DongCoAI:
             except Exception:
                 pass
 
-            # Dự phòng nếu là file tạo từ WPS Office
+            # Dự phòng đọc file tạo từ WPS Office
             import docx2txt
             if hasattr(luong_bytes_file, 'seek'):
                 luong_bytes_file.seek(0)
@@ -320,10 +306,10 @@ class DongCoAI:
                 continue
         return "Lỗi Vision AI: Không thể xử lý hình ảnh qua các Key hiện tại."
 
-    # --- CHAT STREAMING XOAY API KEY CHUẨN XÁC ---
+    # --- CHAT STREAMING CÓ TÍNH NĂNG XOAY API KEY TỰ ĐỘNG ---
     def luong_phan_hoi_chat(self, lich_su_tin_nhan_sach, ngu_canh_web=""):
         if not self.danh_sach_keys:
-            yield "Chưa cấu hình API Key Groq."
+            yield "Chưa cấu hình API Key Groq trong Secrets."
             return
 
         huong_dan_he_thong = (
@@ -334,21 +320,22 @@ class DongCoAI:
         )
         
         if ngu_canh_web and ngu_canh_web != "CHƯA_CÓ_KẾT_QUẢ":
-            huong_dan_he_thong += (
-                f"\n\n[DỮ LIỆU TRA CỨU WEB REAL-TIME]:\n{ngu_canh_web}\n\n"
-                "Tổng hợp thông tin trên để trả lời người dùng."
-            )
+            huong_dan_he_thong += f"\n\n[DỮ LIỆU TRA CỨU WEB REAL-TIME]:\n{ngu_canh_web}\n\nTổng hợp thông tin trên để trả lời người dùng."
 
         tin_nhan_he_thong = {"role": "system", "content": huong_dan_he_thong}
         danh_sach_tin_nhan_gui = [tin_nhan_he_thong] + lich_su_tin_nhan_sach
 
-        # Vòng lặp xoay API Key tự động khi gặp lỗi 429
+        loi_chi_tiet = ""
+        # Vòng lặp xoay API Key tự động khi gặp lỗi rate limit (429)
         for idx, key in enumerate(self.danh_sach_keys):
+            key_sach = str(key).strip()
+            if not key_sach:
+                continue
             try:
-                client_tam = Groq(api_key=key)
+                client_tam = Groq(api_key=key_sach)
                 luong_phan_hoi = client_tam.chat.completions.create(
                     messages=danh_sach_tin_nhan_gui,
-                    model=self.mo_hinh_van_ban, # Model llama-3.1-8b-instant
+                    model=self.mo_hinh_van_ban,
                     temperature=0.0,
                     max_tokens=4000,
                     stream=True
@@ -356,15 +343,14 @@ class DongCoAI:
                 for mieng_chu in luong_phan_hoi:
                     if mieng_chu.choices[0].delta.content:
                         yield mieng_chu.choices[0].delta.content
-                return # Trả về xong xuôi thì thoát ngay
+                return
             except Exception as e:
-                chuoi_loi = str(e)
-                # Bắt lỗi vượt hạn mức (Rate limit 429) để tự động nhảy sang Key tiếp theo
-                if "429" in chuoi_loi or "rate_limit_exceeded" in chuoi_loi:
-                    print(f"API Key số {idx+1} đã hết hạn mức! Đang tự động chuyển sang Key tiếp theo...")
+                loi_chi_tiet = str(e)
+                if "429" in loi_chi_tiet or "rate_limit_exceeded" in loi_chi_tiet:
+                    print(f"API Key số {idx+1} hết hạn mức! Đang chuyển Key tiếp theo...")
                     continue
                 else:
-                    yield f"Lỗi kết nối AI: {chuoi_loi}"
+                    yield f"Lỗi kết nối AI: {loi_chi_tiet}"
                     return
 
-        yield "Tất cả các API Key dự phòng đều đã chạm hạn mức ngày! Vui lòng thử lại sau ít phút."
+        yield f"Tất cả các API Key dự phòng đều gặp sự cố! Chi tiết: {loi_chi_tiet if loi_chi_tiet else 'Kiểm tra lại cấu hình Keys.'}"
